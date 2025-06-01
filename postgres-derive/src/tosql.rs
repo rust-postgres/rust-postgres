@@ -117,7 +117,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                       _type: &postgres_types::Type,
                       buf: &mut postgres_types::private::BytesMut)
                       -> std::result::Result<postgres_types::IsNull,
-                                             std::boxed::Box<std::error::Error +
+                                             std::boxed::Box<dyn std::error::Error +
                                                              std::marker::Sync +
                                                              std::marker::Send>> {
                 #to_sql_body
