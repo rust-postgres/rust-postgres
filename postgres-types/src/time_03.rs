@@ -1,6 +1,5 @@
 use bytes::BytesMut;
 use postgres_protocol::types;
-use std::convert::TryFrom;
 use std::error::Error;
 use time_03::{Date, Duration, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 
