@@ -2,7 +2,7 @@
 name = "postgres-types"
 version = "0.2.9"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Conversions between Rust and Postgres values"
 repository = "https://github.com/sfackler/rust-postgres"

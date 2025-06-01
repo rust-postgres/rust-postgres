@@ -2,7 +2,7 @@
 name = "postgres-openssl"
 version = "0.5.1"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "TLS support for tokio-postgres via openssl"
 repository = "https://github.com/sfackler/rust-postgres"
