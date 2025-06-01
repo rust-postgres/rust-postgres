@@ -54,7 +54,7 @@ bytes = "1.0"
 byteorder = "1.0"
 fallible-iterator = "0.2"
 futures-channel = { version = "0.3", features = ["sink"] }
-futures-util = { version = "0.3", features = ["sink"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 log = "0.4"
 parking_lot = "0.12"
 percent-encoding = "2.0"
@@ -71,6 +71,7 @@ whoami = "1.4.1"
 socket2 = { version = "0.5", features = ["all"] }
 
 [dev-dependencies]
+futures-util = { version = "0.3", default-features = false, features = ["async-await-macro"] }
 futures-executor = "0.3"
 criterion = "0.6"
 env_logger = "0.11"
