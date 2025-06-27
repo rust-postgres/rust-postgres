@@ -10,7 +10,6 @@ use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
-use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{ready, Context, Poll};
@@ -41,7 +40,6 @@ pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQue
     Ok(SimpleQueryStream {
         responses,
         columns: None,
-        _p: PhantomPinned,
     })
 }
 
@@ -72,11 +70,10 @@ fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
 
 pin_project! {
     /// A stream of simple query results.
+    #[project(!Unpin)]
     pub struct SimpleQueryStream {
         responses: Responses,
         columns: Option<Arc<[SimpleColumn]>>,
-        #[pin]
-        _p: PhantomPinned,
     }
 }
 
