@@ -2,7 +2,7 @@ use std::time::Duration;
 use tokio_postgres::config::{Config, SslNegotiation, TargetSessionAttrs};
 
 fn check(s: &str, config: &Config) {
-    assert_eq!(s.parse::<Config>().expect(s), *config, "`{}`", s);
+    assert_eq!(s.parse::<Config>().expect(s), *config, "`{s}`");
 }
 
 #[test]

@@ -314,8 +314,8 @@ impl<'a> Transaction<'a> {
 
     async fn _savepoint(&mut self, name: Option<String>) -> Result<Transaction<'_>, Error> {
         let depth = self.savepoint.as_ref().map_or(0, |sp| sp.depth) + 1;
-        let name = name.unwrap_or_else(|| format!("sp_{}", depth));
-        let query = format!("SAVEPOINT {}", name);
+        let name = name.unwrap_or_else(|| format!("sp_{depth}"));
+        let query = format!("SAVEPOINT {name}");
         self.batch_execute(&query).await?;
 
         Ok(Transaction {

@@ -622,11 +622,11 @@ async fn copy_in_large() {
     let a = Bytes::from_static(b"0\tname0\n");
     let mut b = BytesMut::new();
     for i in 1..5_000 {
-        writeln!(b, "{0}\tname{0}", i).unwrap();
+        writeln!(b, "{i}\tname{i}").unwrap();
     }
     let mut c = BytesMut::new();
     for i in 5_000..10_000 {
-        writeln!(c, "{0}\tname{0}", i).unwrap();
+        writeln!(c, "{i}\tname{i}").unwrap();
     }
     let mut stream = stream::iter(
         vec![a, b.freeze(), c.freeze()]
@@ -700,7 +700,7 @@ async fn copy_out() {
 async fn notices() {
     let long_name = "x".repeat(65);
     let (client, mut connection) =
-        connect_raw(&format!("user=postgres application_name={}", long_name,))
+        connect_raw(&format!("user=postgres application_name={long_name}",))
             .await
             .unwrap();
 

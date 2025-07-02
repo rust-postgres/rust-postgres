@@ -323,7 +323,7 @@ impl fmt::Display for Type {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.schema() {
             "public" | "pg_catalog" => {}
-            schema => write!(fmt, "{}.", schema)?,
+            schema => write!(fmt, "{schema}.")?,
         }
         fmt.write_str(self.name())
     }
@@ -635,16 +635,14 @@ impl<'a, T: FromSql<'a>, const N: usize> FromSql<'a> for [T; N] {
             let v = values
                 .next()?
                 .ok_or_else(|| -> Box<dyn Error + Sync + Send> {
-                    format!("too few elements in array (expected {}, got {})", N, i).into()
+                    format!("too few elements in array (expected {N}, got {i})").into()
                 })?;
             T::from_sql_nullable(member_type, v)
         })?;
         if values.next()?.is_some() {
-            return Err(format!(
-                "excess elements in array (expected {}, got more than that)",
-                N,
-            )
-            .into());
+            return Err(
+                format!("excess elements in array (expected {N}, got more than that)",).into(),
+            );
         }
 
         Ok(out)
