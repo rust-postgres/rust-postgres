@@ -72,11 +72,9 @@ impl<'a> FromSql<'a> for Date {
 impl ToSql for Date {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let jd = (*self - base().date()).whole_days();
-        if jd > i64::from(i32::MAX) || jd < i64::from(i32::MIN) {
-            return Err("value too large to transmit".into());
-        }
+        let jd = i32::try_from(jd).map_err(|_| "value too large to transmit")?;
 
-        types::date_to_sql(jd as i32, w);
+        types::date_to_sql(jd, w);
         Ok(IsNull::No)
     }
 
