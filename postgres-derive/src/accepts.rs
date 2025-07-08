@@ -66,20 +66,16 @@ pub fn enum_body(name: &str, variants: &[Variant], allow_mismatch: bool) -> Toke
     }
 }
 
-pub fn composite_body(name: &str, trait_: &str, fields: &[Field]) -> TokenStream {
+pub fn composite_body_from_sql(name: &str, fields: &[Field]) -> TokenStream {
     let num_fields = fields.len();
-    let trait_ = Ident::new(trait_, Span::call_site());
+    let trait_ = Ident::new("FromSql", Span::call_site());
     let traits = iter::repeat(&trait_);
     let field_names = fields.iter().map(|f| &f.name);
     let field_types = fields.iter().map(|f| &f.type_);
 
     quote! {
-        if type_.name() != #name {
-            return false;
-        }
-
         match *type_.kind() {
-            ::postgres_types::Kind::Composite(ref fields) => {
+            ::postgres_types::Kind::Composite(ref fields) if type_.name() == #name => {
                 if fields.len() != #num_fields {
                     return false;
                 }
@@ -94,7 +90,38 @@ pub fn composite_body(name: &str, trait_: &str, fields: &[Field]) -> TokenStream
                         _ => false,
                     }
                 })
-            }
+            },
+            ::postgres_types::Kind::Pseudo => true,
+            _ => false,
+        }
+    }
+}
+
+pub fn composite_body_to_sql(name: &str, fields: &[Field]) -> TokenStream {
+    let num_fields = fields.len();
+    let trait_ = Ident::new("ToSql", Span::call_site());
+    let traits = iter::repeat(&trait_);
+    let field_names = fields.iter().map(|f| &f.name);
+    let field_types = fields.iter().map(|f| &f.type_);
+
+    quote! {
+        match *type_.kind() {
+            ::postgres_types::Kind::Composite(ref fields) if type_.name() == #name => {
+                if fields.len() != #num_fields {
+                    return false;
+                }
+
+                fields.iter().all(|f| {
+                    match f.name() {
+                        #(
+                            #field_names => {
+                                <#field_types as ::postgres_types::#traits>::accepts(f.type_())
+                            }
+                        )*
+                        _ => false,
+                    }
+                })
+            },
             _ => false,
         }
     }

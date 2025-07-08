@@ -101,7 +101,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
                 .map(|field| Field::parse(field, overrides.rename_all))
                 .collect::<Result<Vec<_>, _>>()?;
             (
-                accepts::composite_body(&name, "FromSql", &fields),
+                accepts::composite_body_from_sql(&name, &fields),
                 composite_body(&input.ident, &fields),
             )
         }
@@ -191,45 +191,96 @@ fn composite_body(ident: &Ident, fields: &[Field]) -> TokenStream {
     let field_names = &fields.iter().map(|f| &f.name).collect::<Vec<_>>();
     let field_idents = &fields.iter().map(|f| &f.ident).collect::<Vec<_>>();
 
+    let field_types = &fields.iter().map(|f| &f.type_).collect::<Vec<_>>();
+    let field_indices = (0..fields.len()).collect::<Vec<_>>();
+    let field_count = fields.len();
+
     quote! {
-        let fields = match *_type.kind() {
-            postgres_types::Kind::Composite(ref fields) => fields,
-            _ => unreachable!(),
-        };
+        match *_type.kind() {
+            postgres_types::Kind::Composite(ref fields) => {
+                let mut buf = buf;
+                let num_fields = postgres_types::private::read_be_i32(&mut buf)?;
+                if num_fields as usize != fields.len() {
+                    return std::result::Result::Err(std::convert::Into::into(format!(
+                        "invalid field count: {} vs {}",
+                        num_fields,
+                        fields.len()
+                    )));
+                }
 
-        let mut buf = buf;
-        let num_fields = postgres_types::private::read_be_i32(&mut buf)?;
-        if num_fields as usize != fields.len() {
-            return std::result::Result::Err(
-                std::convert::Into::into(format!("invalid field count: {} vs {}", num_fields, fields.len())));
-        }
-
-        #(
-            let mut #temp_vars = std::option::Option::None;
-        )*
-
-        for field in fields {
-            let oid = postgres_types::private::read_be_i32(&mut buf)? as u32;
-            if oid != field.type_().oid() {
-                return std::result::Result::Err(std::convert::Into::into("unexpected OID"));
-            }
-
-            match field.name() {
                 #(
-                    #field_names => {
-                        #temp_vars = std::option::Option::Some(
-                            postgres_types::private::read_value(field.type_(), &mut buf)?);
-                    }
+                    let mut #temp_vars = std::option::Option::None;
                 )*
-                _ => unreachable!(),
-            }
-        }
 
-        std::result::Result::Ok(#ident {
-            #(
-                #field_idents: #temp_vars.unwrap(),
-            )*
-        })
+                for field in fields {
+                    let oid = postgres_types::private::read_be_i32(&mut buf)? as u32;
+                    if oid != field.type_().oid() {
+                        return std::result::Result::Err(std::convert::Into::into("unexpected OID"));
+                    }
+
+                    match field.name() {
+                        #(
+                            #field_names => {
+                                #temp_vars = std::option::Option::Some(
+                                    postgres_types::private::read_value(field.type_(), &mut buf)?,
+                                );
+                            }
+                        )*
+                        _ => unreachable!(),
+                    }
+                }
+
+                std::result::Result::Ok(#ident {
+                    #(
+                        #field_idents: #temp_vars.unwrap(),
+                    )*
+                })
+            },
+            postgres_types::Kind::Pseudo if *_type == postgres_types::Type::RECORD => {
+                let mut buf = buf;
+                let num_fields = postgres_types::private::read_be_i32(&mut buf)?;
+                if num_fields as usize != #field_count {
+                    return std::result::Result::Err(
+                        std::convert::Into::into(format!("invalid field count: {} vs {}", num_fields, #field_count)));
+                }
+
+                #(
+                    let mut #temp_vars = std::option::Option::None;
+                )*
+
+                for i in 0..num_fields {
+                    let oid = postgres_types::private::read_be_i32(&mut buf)? as u32;
+                    let ty = match postgres_types::Type::from_oid(oid) {
+                        std::option::Option::None => {
+                            return std::result::Result::Err(std::convert::Into::into(
+                                format!("cannot decode OID {} inside of anonymous record", oid)));
+                        }
+                        std::option::Option::Some(ty) => ty,
+                    };
+
+                    match i as usize {
+                        #(
+                            #field_indices => {
+                                if !<#field_types as postgres_types::FromSql>::accepts(&ty) {
+                                    return std::result::Result::Err(std::boxed::Box::new(
+                                        postgres_types::WrongType::new::<#field_types>(ty.clone())));
+                                }
+                                #temp_vars = std::option::Option::Some(
+                                    postgres_types::private::read_value(&ty, &mut buf)?);
+                            }
+                        )*
+                        _ => unreachable!(),
+                    }
+                }
+
+                std::result::Result::Ok(#ident {
+                    #(
+                        #field_idents: #temp_vars.unwrap(),
+                    )*
+                })
+            },
+            _ => unreachable!(),
+        }
     }
 }
 

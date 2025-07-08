@@ -95,7 +95,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                     .map(|field| Field::parse(field, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    accepts::composite_body(&name, "ToSql", &fields),
+                    accepts::composite_body_to_sql(&name, &fields),
                     composite_body(&fields),
                 )
             }
@@ -112,7 +112,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
     let generics = append_generic_bound(input.generics.to_owned(), &new_tosql_bound());
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let out = quote! {
-        impl#impl_generics postgres_types::ToSql for #ident#ty_generics #where_clause {
+        impl #impl_generics postgres_types::ToSql for #ident #ty_generics #where_clause {
             fn to_sql(&self,
                       _type: &postgres_types::Type,
                       buf: &mut postgres_types::private::BytesMut)
