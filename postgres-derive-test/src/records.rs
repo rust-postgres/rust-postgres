@@ -118,6 +118,73 @@ fn nested_structs() {
 }
 
 #[test]
+fn domains() {
+    #[derive(FromSql, Debug, PartialEq)]
+    struct SpecialId(i32);
+
+    #[derive(FromSql, Debug, PartialEq)]
+    struct Person {
+        name: String,
+        age: Option<i32>,
+        id: SpecialId,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.execute("CREATE DOMAIN pg_temp.\"special_id\" AS integer;", &[])
+        .unwrap();
+
+    let result: Person = conn
+        .query_one("SELECT ('John', 30, 42::special_id)", &[])
+        .unwrap()
+        .get(0);
+
+    let expected = Person {
+        name: "John".to_owned(),
+        age: Some(30),
+        id: SpecialId(42),
+    };
+
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn enums() {
+    #[derive(FromSql, Debug, PartialEq)]
+    enum Employment {
+        Salaried,
+        Hourly,
+        Unemployed,
+    }
+
+    #[derive(FromSql, Debug, PartialEq)]
+    struct Person {
+        name: String,
+        age: Option<i32>,
+        employment: Employment,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.execute(
+        "CREATE TYPE pg_temp.employment AS ENUM ('Salaried', 'Hourly', 'Unemployed')",
+        &[],
+    )
+    .unwrap();
+
+    let result: Person = conn
+        .query_one("SELECT ('John', 30, 'Hourly'::employment)", &[])
+        .unwrap()
+        .get(0);
+
+    let expected = Person {
+        name: "John".to_owned(),
+        age: Some(30),
+        employment: Employment::Hourly,
+    };
+
+    assert_eq!(result, expected);
+}
+
+#[test]
 fn generics() {
     #[derive(FromSql, ToSql, Debug, PartialEq)]
     struct GenericItem<T, U> {

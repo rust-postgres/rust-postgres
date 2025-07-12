@@ -41,6 +41,9 @@ pub fn enum_body(name: &str, variants: &[Variant], allow_mismatch: bool) -> Toke
         }
     } else {
         quote! {
+            if *type_ == postgres_types::Type::UNKNOWN {
+                return true;
+            }
             if type_.name() != #name {
                 return false;
             }

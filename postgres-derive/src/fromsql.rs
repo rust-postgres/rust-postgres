@@ -171,6 +171,9 @@ fn domain_accepts_body(name: &str, field: &syn::Field) -> TokenStream {
         if <#ty as postgres_types::FromSql>::accepts(type_) {
             return true;
         }
+        if *type_ == postgres_types::Type::UNKNOWN {
+            return true;
+        }
 
         #normal_body
     }
@@ -250,13 +253,9 @@ fn composite_body(ident: &Ident, fields: &[Field]) -> TokenStream {
 
                 for i in 0..num_fields {
                     let oid = postgres_types::private::read_be_i32(&mut buf)? as u32;
-                    let ty = match postgres_types::Type::from_oid(oid) {
-                        std::option::Option::None => {
-                            return std::result::Result::Err(std::convert::Into::into(
-                                format!("cannot decode OID {} inside of anonymous record", oid)));
-                        }
-                        std::option::Option::Some(ty) => ty,
-                    };
+                    // FIXME: I see no other way to make this work with non-builtin types
+                    // besides expanding the FromSql trait to also require passing the client
+                    let ty = postgres_types::Type::from_oid(oid).unwrap_or(postgres_types::Type::UNKNOWN);
 
                     match i as usize {
                         #(
