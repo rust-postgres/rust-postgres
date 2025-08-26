@@ -144,6 +144,24 @@ impl<'a> Transaction<'a> {
         self.client.query_typed(statement, params).await
     }
 
+    /// Like `Client::query_typed_one`.
+    pub async fn query_typed_one(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.client.query_typed_one(statement, params).await
+    }
+
+    /// Like `Client::query_typed_opt`.
+    pub async fn query_typed_opt(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        self.client.query_typed_opt(statement, params).await
+    }
+
     /// Like `Client::query_typed_raw`.
     pub async fn query_typed_raw<P, I>(&self, query: &str, params: I) -> Result<RowStream, Error>
     where
@@ -163,6 +181,15 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
     {
         self.client.execute(statement, params).await
+    }
+
+    /// Like `Client::execute_typed`.
+    pub async fn execute_typed(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error> {
+        self.client.execute_typed(statement, params).await
     }
 
     /// Like `Client::execute_iter`.

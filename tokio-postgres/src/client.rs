@@ -388,6 +388,70 @@ impl Client {
             .await
     }
 
+    /// Like `query_one`, but requires the types of query parameters to be explicitly specified.
+    ///
+    /// Compared to `query_one`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// Executes a statement which returns a single row, returning it.
+    ///
+    /// Returns an error if the query does not return exactly one row.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    pub async fn query_typed_one(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.query_typed_opt(statement, params)
+            .await
+            .and_then(|res| res.ok_or_else(Error::row_count))
+    }
+
+    /// Like `query_one`, but requires the types of query parameters to be explicitly specified.
+    ///
+    /// Compared to `query_one`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the
+    /// parameter of the list provided, 1-indexed.
+    /// Executes a statements which returns zero or one rows, returning it.
+    ///
+    /// Returns an error if the query returns more than one row.
+    pub async fn query_typed_opt(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        let mut stream = pin!(
+            self.query_typed_raw(statement, params.iter().map(|(v, t)| (*v, t.clone())))
+                .await?
+        );
+
+        let mut first = None;
+
+        // Originally this was two calls to `try_next().await?`,
+        // once for the first element, and second to error if more than one.
+        //
+        // However, this new form with only one .await in a loop generates
+        // slightly smaller codegen/stack usage for the resulting future.
+        while let Some(row) = stream.try_next().await? {
+            if first.is_some() {
+                return Err(Error::row_count());
+            }
+
+            first = Some(row);
+        }
+
+        Ok(first)
+    }
+
     /// The maximally flexible version of [`query_typed`].
     ///
     /// Compared to `query`, this method allows performing queries without three round trips (for
@@ -451,6 +515,29 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         self.execute_raw(statement, slice_iter(params)).await
+    }
+
+    /// Executes a statement, returning the number of rows modified.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
+    /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
+    /// with the `prepare` method.
+    ///
+    /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
+    pub async fn execute_typed(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error> {
+        query::execute_typed(
+            &self.inner,
+            statement,
+            params.iter().map(|(v, t)| (*v, t.clone())),
+        )
+        .await
     }
 
     /// The maximally flexible version of [`execute`].

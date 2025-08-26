@@ -404,6 +404,71 @@ async fn transaction_commit() {
 }
 
 #[tokio::test]
+async fn execute_typed() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+                CREATE TEMPORARY TABLE foo (
+                    name TEXT,
+                    age INT
+                );
+                INSERT INTO foo (name, age) VALUES ('alice', 20), ('bob', 30), ('carol', 40);
+            ",
+        )
+        .await
+        .unwrap();
+
+    // one row is modified, hence expect 1
+    let n = client
+        .execute_typed(
+            "INSERT INTO foo (name, age) VALUES ($1, $2)",
+            &[(&"dave", Type::TEXT), (&39i32, Type::INT4)],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(n, 1);
+
+    // confirming execution succeeded
+    let row = client
+        .query_typed_one(
+            "SELECT age FROM foo WHERE name = $1",
+            &[(&"dave", Type::TEXT)],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(row.get::<_, i32>(0), 39);
+
+    // there are 4 rows in the table, that will be updated
+    let n = client
+        .execute_typed("UPDATE foo SET age = $1", &[(&100i32, Type::INT4)])
+        .await
+        .unwrap();
+
+    assert_eq!(n, 4);
+    // no rows are modified, hence expect 0
+    let n = client
+        .execute_typed("SELECT * FROM foo WHERE age < $1", &[(&50i32, Type::INT4)])
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+
+    // there are 4 rows in the table, that will be updated
+    let n = client
+        .execute_typed(
+            "UPDATE foo SET age = $1 RETURNING name",
+            &[(&200i32, Type::INT4)],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(n, 4);
+}
+
+#[tokio::test]
 async fn transaction_rollback() {
     let mut client = connect("user=postgres").await;
 
@@ -898,6 +963,63 @@ async fn query_one() {
 }
 
 #[tokio::test]
+async fn query_typed_one() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+                CREATE TEMPORARY TABLE foo (
+                    name TEXT,
+                    age INT
+                );
+                INSERT INTO foo (name, age) VALUES ('alice', 20), ('bob', 30), ('carol', 40);
+            ",
+        )
+        .await
+        .unwrap();
+
+    // should return exactly one row
+    let row = client
+        .query_typed_one(
+            "SELECT name, age FROM foo WHERE name = $1 AND age = $2",
+            &[(&"alice", Type::TEXT), (&20i32, Type::INT4)],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(row.get::<_, &str>(0), "alice");
+    assert_eq!(row.get::<_, i32>(1), 20);
+
+    // dave doesn't exist, hence should return no row
+    client
+        .query_typed_one(
+            "SELECT * FROM foo WHERE name = $1",
+            &[(&"dave", Type::TEXT)],
+        )
+        .await
+        .err()
+        .unwrap();
+
+    // should return error if the number of rows returned is not exactly one
+    client
+        .query_typed_one("SELECT * FROM foo", &[])
+        .await
+        .err()
+        .unwrap();
+
+    // should be none because no row is returned
+    client
+        .query_typed_one(
+            "INSERT INTO foo (name, age) VALUES ($1, $2)",
+            &[(&"dave", Type::TEXT), (&45i32, Type::INT4)],
+        )
+        .await
+        .err()
+        .unwrap();
+}
+
+#[tokio::test]
 async fn query_opt() {
     let client = connect("user=postgres").await;
 
@@ -928,6 +1050,64 @@ async fn query_opt() {
         .await
         .err()
         .unwrap();
+}
+
+#[tokio::test]
+async fn query_typed_opt() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "
+                CREATE TEMPORARY TABLE foo (
+                    name TEXT,
+                    age INT
+                );
+                INSERT INTO foo (name, age) VALUES ('alice', 20), ('bob', 30), ('carol', 40);
+            ",
+        )
+        .await
+        .unwrap();
+
+    // should return exactly one row
+    let row = client
+        .query_typed_opt(
+            "SELECT name, age FROM foo WHERE name = $1 AND age = $2",
+            &[(&"alice", Type::TEXT), (&20i32, Type::INT4)],
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(row.get::<_, &str>(0), "alice");
+    assert_eq!(row.get::<_, i32>(1), 20);
+
+    // dave doesn't exist, hence should return no row
+    assert!(client
+        .query_typed_opt(
+            "SELECT * FROM foo WHERE name = $1",
+            &[(&"dave", Type::TEXT)]
+        )
+        .await
+        .unwrap()
+        .is_none());
+
+    // should return error if the number of rows returned is not exactly one or zero
+    client
+        .query_typed_opt("SELECT * FROM foo", &[])
+        .await
+        .err()
+        .unwrap();
+
+    // should be none because no row is returned
+    assert!(client
+        .query_typed_opt(
+            "INSERT INTO foo (name, age) VALUES ($1, $2)",
+            &[(&"dave", Type::TEXT), (&45i32, Type::INT4)],
+        )
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]
