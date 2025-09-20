@@ -928,7 +928,7 @@ async fn query_opt() {
         .unwrap()
         .unwrap();
     client
-        .query_one("SELECT * FROM foo", &[])
+        .query_opt("SELECT * FROM foo", &[])
         .await
         .err()
         .unwrap();
