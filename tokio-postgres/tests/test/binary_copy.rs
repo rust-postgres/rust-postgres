@@ -1,5 +1,6 @@
 use crate::connect;
-use futures_util::{pin_mut, TryStreamExt};
+use futures_util::TryStreamExt;
+use std::pin::pin;
 use tokio_postgres::binary_copy::{BinaryCopyInWriter, BinaryCopyOutStream};
 use tokio_postgres::types::Type;
 
@@ -16,8 +17,7 @@ async fn write_basic() {
         .copy_in("COPY foo (id, bar) FROM STDIN BINARY")
         .await
         .unwrap();
-    let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]);
-    pin_mut!(writer);
+    let mut writer = pin!(BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]));
     writer.as_mut().write(&[&1i32, &"foobar"]).await.unwrap();
     writer
         .as_mut()
@@ -50,8 +50,7 @@ async fn write_many_rows() {
         .copy_in("COPY foo (id, bar) FROM STDIN BINARY")
         .await
         .unwrap();
-    let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]);
-    pin_mut!(writer);
+    let mut writer = pin!(BinaryCopyInWriter::new(sink, &[Type::INT4, Type::TEXT]));
 
     for i in 0..10_000i32 {
         writer
@@ -86,8 +85,7 @@ async fn write_big_rows() {
         .copy_in("COPY foo (id, bar) FROM STDIN BINARY")
         .await
         .unwrap();
-    let writer = BinaryCopyInWriter::new(sink, &[Type::INT4, Type::BYTEA]);
-    pin_mut!(writer);
+    let mut writer = pin!(BinaryCopyInWriter::new(sink, &[Type::INT4, Type::BYTEA]));
 
     for i in 0..2i32 {
         writer

@@ -6,7 +6,7 @@ use crate::types::{BorrowToSql, IsNull};
 use crate::{Column, Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
-use futures_util::{ready, Stream};
+use futures_util::Stream;
 use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::{CommandCompleteBody, Message};
@@ -16,7 +16,7 @@ use std::fmt;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
 

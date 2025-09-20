@@ -19,18 +19,20 @@ use crate::{
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
-use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
+use futures_util::{StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
+use std::future;
 #[cfg(feature = "runtime")]
 use std::net::IpAddr;
 #[cfg(feature = "runtime")]
 use std::path::PathBuf;
+use std::pin::pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -300,8 +302,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let stream = self.query_raw(statement, slice_iter(params)).await?;
-        pin_mut!(stream);
+        let mut stream = pin!(self.query_raw(statement, slice_iter(params)).await?);
 
         let mut first = None;
 
@@ -336,18 +337,18 @@ impl Client {
     ///
     /// ```no_run
     /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
-    /// use futures_util::{pin_mut, TryStreamExt};
+    /// use std::pin::pin;
+    /// use futures_util::TryStreamExt;
     ///
     /// let params: Vec<String> = vec![
     ///     "first param".into(),
     ///     "second param".into(),
     /// ];
-    /// let mut it = client.query_raw(
+    /// let mut it = pin!(client.query_raw(
     ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
     ///     params,
-    /// ).await?;
+    /// ).await?);
     ///
-    /// pin_mut!(it);
     /// while let Some(row) = it.try_next().await? {
     ///     let foo: i32 = row.get("foo");
     ///     println!("foo: {}", foo);
@@ -402,19 +403,19 @@ impl Client {
     ///
     /// ```no_run
     /// # async fn async_main(client: &tokio_postgres::Client) -> Result<(), tokio_postgres::Error> {
-    /// use futures_util::{pin_mut, TryStreamExt};
+    /// use std::pin::pin;
+    /// use futures_util::{TryStreamExt};
     /// use tokio_postgres::types::Type;
     ///
     /// let params: Vec<(String, Type)> = vec![
     ///     ("first param".into(), Type::TEXT),
     ///     ("second param".into(), Type::TEXT),
     /// ];
-    /// let mut it = client.query_typed_raw(
+    /// let mut it = pin!(client.query_typed_raw(
     ///     "SELECT foo FROM bar WHERE biz = $1 AND baz = $2",
     ///     params,
-    /// ).await?;
+    /// ).await?);
     ///
-    /// pin_mut!(it);
     /// while let Some(row) = it.try_next().await? {
     ///     let foo: i32 = row.get("foo");
     ///     println!("foo: {}", foo);
