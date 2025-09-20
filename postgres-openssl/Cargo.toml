@@ -9,9 +9,6 @@ repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 rust-version = "1.81"
 
-[badges]
-circle-ci = { repository = "sfackler/rust-postgres" }
-
 [features]
 default = ["runtime"]
 runtime = ["tokio-postgres/runtime"]

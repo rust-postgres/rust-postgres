@@ -18,9 +18,6 @@ harness = false
 [package.metadata.docs.rs]
 all-features = true
 
-[badges]
-circle-ci = { repository = "sfackler/rust-postgres" }
-
 [features]
 array-impls = ["tokio-postgres/array-impls"]
 with-bit-vec-0_6 = ["tokio-postgres/with-bit-vec-0_6"]

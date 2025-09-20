@@ -21,9 +21,6 @@ harness = false
 [package.metadata.docs.rs]
 all-features = true
 
-[badges]
-circle-ci = { repository = "sfackler/rust-postgres" }
-
 [features]
 default = ["runtime"]
 runtime = ["tokio/net", "tokio/time"]
