@@ -5,7 +5,7 @@ authors = ["Steven Fackler <sfackler@palantir.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 description = "An internal crate used by postgres-types"
-repository = "https://github.com/sfackler/rust-postgres"
+repository = "https://github.com/rust-postgres/rust-postgres"
 
 [lib]
 proc-macro = true

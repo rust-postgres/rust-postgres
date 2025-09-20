@@ -5,7 +5,7 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Conversions between Rust and Postgres values"
-repository = "https://github.com/sfackler/rust-postgres"
+repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 categories = ["database"]
@@ -49,7 +49,7 @@ chrono-04 = { version = "0.4.16", package = "chrono", default-features = false, 
 cidr-02 = { version = "0.2", package = "cidr", optional = true }
 cidr-03 = { version = "0.3", package = "cidr", optional = true }
 # eui48-04 will stop compiling and support will be removed
-# See https://github.com/sfackler/rust-postgres/issues/1073
+# See https://github.com/rust-postgres/rust-postgres/issues/1073
 eui48-04 = { version = "0.4", package = "eui48", optional = true }
 eui48-1 = { version = "1.0", package = "eui48", optional = true, default-features = false }
 geo-types-06 = { version = "0.6", package = "geo-types", optional = true }
