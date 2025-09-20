@@ -9,6 +9,7 @@ repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 categories = ["database"]
+rust-version = "1.81"
 
 [[bench]]
 name = "bench"

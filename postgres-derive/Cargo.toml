@@ -6,6 +6,7 @@ license = "MIT OR Apache-2.0"
 edition = "2021"
 description = "An internal crate used by postgres-types"
 repository = "https://github.com/rust-postgres/rust-postgres"
+rust-version = "1.81"
 
 [lib]
 proc-macro = true

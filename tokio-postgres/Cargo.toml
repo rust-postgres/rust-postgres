@@ -9,6 +9,7 @@ repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
 categories = ["database"]
+rust-version = "1.81"
 
 [lib]
 test = false
