@@ -55,7 +55,7 @@ async fn write_many_rows() {
     for i in 0..10_000i32 {
         writer
             .as_mut()
-            .write(&[&i, &format!("the value for {}", i)])
+            .write(&[&i, &format!("the value for {i}")])
             .await
             .unwrap();
     }
@@ -68,7 +68,7 @@ async fn write_many_rows() {
         .unwrap();
     for (i, row) in rows.iter().enumerate() {
         assert_eq!(row.get::<_, i32>(0), i as i32);
-        assert_eq!(row.get::<_, &str>(1), format!("the value for {}", i));
+        assert_eq!(row.get::<_, &str>(1), format!("the value for {i}"));
     }
 }
 
@@ -162,7 +162,7 @@ async fn read_many_rows() {
 
     for (i, row) in rows.iter().enumerate() {
         assert_eq!(row.get::<i32>(0), i as i32);
-        assert_eq!(row.get::<&str>(1), format!("the value for {}", i));
+        assert_eq!(row.get::<&str>(1), format!("the value for {i}"));
     }
 }
 

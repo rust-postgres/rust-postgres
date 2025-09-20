@@ -33,7 +33,7 @@ impl SimpleColumn {
 }
 
 pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQueryStream, Error> {
-    debug!("executing simple query: {}", query);
+    debug!("executing simple query: {query}");
 
     let buf = encode(client, query)?;
     let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
@@ -46,7 +46,7 @@ pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQue
 }
 
 pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Error> {
-    debug!("executing statement batch: {}", query);
+    debug!("executing statement batch: {query}");
 
     let buf = encode(client, query)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;

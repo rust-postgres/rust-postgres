@@ -102,5 +102,5 @@ pub fn md5(password: &[u8], username: &str) -> String {
     let mut hash = Md5::new();
     hash.update(&salted_password);
     let digest = hash.finalize();
-    format!("md5{:x}", digest)
+    format!("md5{digest:x}")
 }

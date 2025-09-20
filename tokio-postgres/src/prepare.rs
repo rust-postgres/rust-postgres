@@ -118,9 +118,9 @@ fn prepare_rec<'a>(
 
 fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
     if types.is_empty() {
-        debug!("preparing query {}: {}", name, query);
+        debug!("preparing query {name}: {query}");
     } else {
-        debug!("preparing query {} with types {:?}: {}", name, types, query);
+        debug!("preparing query {name} with types {types:?}: {query}");
     }
 
     client.with_buf(|buf| {

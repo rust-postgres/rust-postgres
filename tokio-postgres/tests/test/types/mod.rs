@@ -53,14 +53,14 @@ where
 
     for (val, repr) in checks {
         let rows = client
-            .query(&*format!("SELECT {}::{}", repr, sql_type), &[])
+            .query(&*format!("SELECT {repr}::{sql_type}"), &[])
             .await
             .unwrap();
         let result = rows[0].get(0);
         assert_eq!(val, &result);
 
         let rows = client
-            .query(&*format!("SELECT $1::{}", sql_type), &[&val])
+            .query(&*format!("SELECT $1::{sql_type}"), &[&val])
             .await
             .unwrap();
         let result = rows[0].get(0);
@@ -395,7 +395,7 @@ where
     let client = connect("user=postgres").await;
 
     let stmt = client
-        .prepare(&format!("SELECT 'NaN'::{}", sql_type))
+        .prepare(&format!("SELECT 'NaN'::{sql_type}"))
         .await
         .unwrap();
     let rows = client.query(&stmt, &[]).await.unwrap();

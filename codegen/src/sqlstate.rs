@@ -72,7 +72,6 @@ fn make_code(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<Fi
             file,
             r#"
             Inner::E{code} => "{code}","#,
-            code = code,
         )
         .unwrap();
     }
@@ -97,8 +96,6 @@ fn make_consts(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<
     /// {code}
     pub const {name}: SqlState = SqlState(Inner::E{code});
 "#,
-                name = name,
-                code = code,
             )
             .unwrap();
         }
@@ -121,8 +118,7 @@ enum Inner {{"#,
         write!(
             file,
             r#"
-    E{},"#,
-            code,
+    E{code},"#,
         )
         .unwrap();
     }

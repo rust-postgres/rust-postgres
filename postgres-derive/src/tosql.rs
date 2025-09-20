@@ -196,7 +196,7 @@ fn composite_body(fields: &[Field]) -> TokenStream {
                 postgres_types::IsNull::Yes => -1,
                 postgres_types::IsNull::No => {
                     let len = buf.len() - base - 4;
-                    if len > i32::max_value() as usize {
+                    if len > i32::MAX as usize {
                         return std::result::Result::Err(
                             std::convert::Into::into("value too large to transmit"));
                     }

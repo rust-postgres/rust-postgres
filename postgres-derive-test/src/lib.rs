@@ -21,7 +21,7 @@ where
         let result = conn.query_one(&stmt, &[]).unwrap().get(0);
         assert_eq!(val, &result);
 
-        let stmt = conn.prepare(&format!("SELECT $1::{}", sql_type)).unwrap();
+        let stmt = conn.prepare(&format!("SELECT $1::{sql_type}")).unwrap();
         let result = conn.query_one(&stmt, &[val]).unwrap().get(0);
         assert_eq!(val, &result);
     }
@@ -45,7 +45,7 @@ pub fn test_type_asymmetric<T, F, S, C>(
         let result: F = conn.query_one(&stmt, &[]).unwrap().get(0);
         assert!(cmp(val, &result));
 
-        let stmt = conn.prepare(&format!("SELECT $1::{}", sql_type)).unwrap();
+        let stmt = conn.prepare(&format!("SELECT $1::{sql_type}")).unwrap();
         let result: F = conn.query_one(&stmt, &[val]).unwrap().get(0);
         assert!(cmp(val, &result));
     }

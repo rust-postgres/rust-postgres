@@ -3,7 +3,7 @@ use chrono_04::{
     DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc,
 };
 use postgres_protocol::types;
-use std::error::Error;
+use std::{convert::TryFrom, error::Error};
 
 use crate::{FromSql, IsNull, ToSql, Type};
 
@@ -123,11 +123,9 @@ impl<'a> FromSql<'a> for NaiveDate {
 impl ToSql for NaiveDate {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let jd = self.signed_duration_since(base().date()).num_days();
-        if jd > i64::from(i32::max_value()) || jd < i64::from(i32::min_value()) {
-            return Err("value too large to transmit".into());
-        }
+        let jd = i32::try_from(jd).map_err(|_| "value too large to transmit")?;
 
-        types::date_to_sql(jd as i32, w);
+        types::date_to_sql(jd, w);
         Ok(IsNull::No)
     }
 
