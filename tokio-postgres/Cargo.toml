@@ -68,7 +68,7 @@ rand = "0.9.0"
 whoami = "1.4.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-socket2 = { version = "0.5", features = ["all"] }
+socket2 = { version = "0.6", features = ["all"] }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["async-await-macro"] }
