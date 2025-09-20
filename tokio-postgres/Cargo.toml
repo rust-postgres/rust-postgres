@@ -29,6 +29,8 @@ runtime = ["tokio/net", "tokio/time"]
 
 array-impls = ["postgres-types/array-impls"]
 with-bit-vec-0_6 = ["postgres-types/with-bit-vec-0_6"]
+with-bit-vec-0_7 = ["postgres-types/with-bit-vec-0_7"]
+with-bit-vec-0_8 = ["postgres-types/with-bit-vec-0_8"]
 with-chrono-0_4 = ["postgres-types/with-chrono-0_4"]
 with-cidr-0_2 = ["postgres-types/with-cidr-0_2"]
 with-cidr-0_3 = ["postgres-types/with-cidr-0_3"]
@@ -81,6 +83,8 @@ tokio = { version = "1.0", features = [
 ] }
 
 bit-vec-06 = { version = "0.6", package = "bit-vec" }
+bit-vec-07 = { version = "0.7", package = "bit-vec" }
+bit-vec-08 = { version = "0.8", package = "bit-vec" }
 chrono-04 = { version = "0.4", package = "chrono", default-features = false }
 eui48-1 = { version = "1.0", package = "eui48", default-features = false }
 geo-types-06 = { version = "0.6", package = "geo-types" }

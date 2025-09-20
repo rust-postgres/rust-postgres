@@ -15,6 +15,8 @@ derive = ["postgres-derive"]
 array-impls = ["array-init"]
 js = ["postgres-protocol/js"]
 with-bit-vec-0_6 = ["bit-vec-06"]
+with-bit-vec-0_7 = ["bit-vec-07"]
+with-bit-vec-0_8 = ["bit-vec-08"]
 with-cidr-0_2 = ["cidr-02"]
 with-cidr-0_3 = ["cidr-03"]
 with-chrono-0_4 = ["chrono-04"]
@@ -39,6 +41,8 @@ postgres-derive = { version = "0.4.6", optional = true, path = "../postgres-deri
 
 array-init = { version = "2", optional = true }
 bit-vec-06 = { version = "0.6", package = "bit-vec", optional = true }
+bit-vec-07 = { version = "0.7", package = "bit-vec", optional = true }
+bit-vec-08 = { version = "0.8", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4.16", package = "chrono", default-features = false, features = [
     "clock",
 ], optional = true }

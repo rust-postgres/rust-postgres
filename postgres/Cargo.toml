@@ -23,6 +23,8 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 [features]
 array-impls = ["tokio-postgres/array-impls"]
 with-bit-vec-0_6 = ["tokio-postgres/with-bit-vec-0_6"]
+with-bit-vec-0_7 = ["tokio-postgres/with-bit-vec-0_7"]
+with-bit-vec-0_8 = ["tokio-postgres/with-bit-vec-0_8"]
 with-chrono-0_4 = ["tokio-postgres/with-chrono-0_4"]
 with-cidr-0_2 = ["tokio-postgres/with-cidr-0_2"]
 with-cidr-0_3 = ["tokio-postgres/with-cidr-0_3"]

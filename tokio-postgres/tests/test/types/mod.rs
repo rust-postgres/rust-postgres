@@ -15,6 +15,10 @@ use bytes::BytesMut;
 
 #[cfg(feature = "with-bit-vec-0_6")]
 mod bit_vec_06;
+#[cfg(feature = "with-bit-vec-0_7")]
+mod bit_vec_07;
+#[cfg(feature = "with-bit-vec-0_8")]
+mod bit_vec_08;
 #[cfg(feature = "with-chrono-0_4")]
 mod chrono_04;
 #[cfg(feature = "with-eui48-1")]
