@@ -92,7 +92,6 @@ geo-types-06 = { version = "0.6", package = "geo-types" }
 geo-types-07 = { version = "0.7", package = "geo-types" }
 jiff-01 = { version = "0.1", package = "jiff" }
 jiff-02 = { version = "0.2", package = "jiff" }
-serde-1 = { version = "1.0", package = "serde" }
 serde_json-1 = { version = "1.0", package = "serde_json" }
 smol_str-01 = { version = "0.1", package = "smol_str" }
 uuid-08 = { version = "0.8", package = "uuid" }
