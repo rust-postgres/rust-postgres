@@ -52,7 +52,7 @@ js = ["postgres-protocol/js", "postgres-types/js"]
 async-trait = "0.1"
 bytes = "1.0"
 byteorder = "1.0"
-fallible-iterator = "0.2"
+fallible-iterator = "0.3"
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 log = "0.4"
