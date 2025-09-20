@@ -340,6 +340,7 @@ pub enum ErrorPosition {
 /// Error kind returned by the database.
 #[allow(missing_docs)]
 #[derive(Debug, PartialEq, Clone)]
+#[non_exhaustive]
 pub enum Kind {
     Io,
     UnexpectedMessage,
