@@ -2,7 +2,7 @@
 name = "postgres"
 version = "0.19.10"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "A native, synchronous PostgreSQL client"
 repository = "https://github.com/sfackler/rust-postgres"

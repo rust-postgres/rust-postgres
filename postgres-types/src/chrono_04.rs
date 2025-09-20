@@ -3,7 +3,7 @@ use chrono_04::{
     DateTime, Duration, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc,
 };
 use postgres_protocol::types;
-use std::{convert::TryFrom, error::Error};
+use std::error::Error;
 
 use crate::{FromSql, IsNull, ToSql, Type};
 
