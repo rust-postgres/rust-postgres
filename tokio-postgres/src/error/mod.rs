@@ -352,7 +352,10 @@ pub enum Kind {
     Column(String),
     /// The number of parameters expected by the query doesn't match the number
     /// of parameters passed when executing the prepared statement.
-    Parameters(usize, usize),
+    Parameters {
+        expected: usize,
+        found: usize,
+    },
     Closed,
     Db,
     Parse,
