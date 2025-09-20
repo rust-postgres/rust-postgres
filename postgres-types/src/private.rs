@@ -23,10 +23,9 @@ where
     let value = if len < 0 {
         None
     } else {
-        if len as usize > buf.len() {
-            return Err("invalid buffer size".into());
-        }
-        let (head, tail) = buf.split_at(len as usize);
+        let (head, tail) = buf
+            .split_at_checked(len as usize)
+            .ok_or("invalid buffer size")?;
         *buf = tail;
         Some(head)
     };
