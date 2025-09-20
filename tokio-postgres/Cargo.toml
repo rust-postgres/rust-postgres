@@ -73,7 +73,7 @@ socket2 = { version = "0.6", features = ["all"] }
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["async-await-macro"] }
 futures-executor = "0.3"
-criterion = "0.6"
+criterion = "0.7"
 env_logger = "0.11"
 tokio = { version = "1.0", features = [
     "macros",
