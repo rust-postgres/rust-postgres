@@ -139,7 +139,7 @@ enum Inner {{"#,
 fn make_map(codes: &LinkedHashMap<String, Vec<String>>, file: &mut BufWriter<File>) {
     let mut builder = phf_codegen::Map::new();
     for (code, names) in codes {
-        builder.entry(&**code, &format!("SqlState::{}", &names[0]));
+        builder.entry(&**code, format!("SqlState::{}", &names[0]));
     }
     write!(
         file,
