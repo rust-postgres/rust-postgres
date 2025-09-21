@@ -147,6 +147,12 @@ async fn scram_password_ok() {
 }
 
 #[tokio::test]
+async fn sync() {
+    let client = connect("user=postgres").await;
+    client.check_connection().await.unwrap();
+}
+
+#[tokio::test]
 async fn pipelined_prepare() {
     let client = connect("user=postgres").await;
 

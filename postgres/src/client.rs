@@ -487,6 +487,11 @@ impl Client {
         self.connection.block_on(self.client.batch_execute(query))
     }
 
+    /// Check the connection is alive and wait for the confirmation.
+    pub fn check_connection(&mut self) -> Result<(), Error> {
+        self.connection.block_on(self.client.check_connection())
+    }
+
     /// Begins a new database transaction.
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.

@@ -298,14 +298,7 @@ where
         self.parameters.get(name).map(|s| &**s)
     }
 
-    /// Polls for asynchronous messages from the server.
-    ///
-    /// The server can send notices as well as notifications asynchronously to the client. Applications that wish to
-    /// examine those messages should use this method to drive the connection rather than its `Future` implementation.
-    ///
-    /// Return values of `None` or `Some(Err(_))` are "terminal"; callers should not invoke this method again after
-    /// receiving one of those values.
-    pub fn poll_message(
+    fn poll_message_inner(
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<AsyncMessage, Error>>> {
@@ -321,6 +314,26 @@ where
                 Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
                 Poll::Pending => Poll::Pending,
             },
+        }
+    }
+
+    /// Polls for asynchronous messages from the server.
+    ///
+    /// The server can send notices as well as notifications asynchronously to the client. Applications that wish to
+    /// examine those messages should use this method to drive the connection rather than its `Future` implementation.
+    ///
+    /// Return values of `None` or `Some(Err(_))` are "terminal"; callers should not invoke this method again after
+    /// receiving one of those values.
+    pub fn poll_message(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<AsyncMessage, Error>>> {
+        match self.poll_message_inner(cx) {
+            nominal @ (Poll::Pending | Poll::Ready(Some(Ok(_)))) => nominal,
+            terminal @ (Poll::Ready(None) | Poll::Ready(Some(Err(_)))) => {
+                self.receiver.close();
+                terminal
+            }
         }
     }
 }

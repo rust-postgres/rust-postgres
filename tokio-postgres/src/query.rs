@@ -323,3 +323,13 @@ impl RowStream {
         self.rows_affected
     }
 }
+
+pub async fn sync(client: &InnerClient) -> Result<(), Error> {
+    let buf = Bytes::from_static(b"S\0\0\0\x04");
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+    match responses.next().await? {
+        Message::ReadyForQuery(_) => Ok(()),
+        _ => Err(Error::unexpected_message()),
+    }
+}
