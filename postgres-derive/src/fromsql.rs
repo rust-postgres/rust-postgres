@@ -179,7 +179,10 @@ fn domain_accepts_body(name: &str, field: &syn::Field) -> TokenStream {
 fn domain_body(ident: &Ident, field: &syn::Field) -> TokenStream {
     let ty = &field.ty;
     quote! {
-        <#ty as postgres_types::FromSql>::from_sql(_type, buf).map(#ident)
+        <#ty as postgres_types::FromSql>::from_sql(match *_type.kind() {
+            postgres_types::Kind::Domain(ref _type) => _type,
+            _ => _type
+        }, buf).map(#ident)
     }
 }
 
