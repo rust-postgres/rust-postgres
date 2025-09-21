@@ -31,6 +31,7 @@
 //!
 //! # #[cfg(feature = "derive")]
 //! #[derive(Debug, ToSql, FromSql)]
+//! #[postgres(name = "Mood")]
 //! enum Mood {
 //!     Sad,
 //!     Ok,
@@ -52,6 +53,7 @@
 //!
 //! # #[cfg(feature = "derive")]
 //! #[derive(Debug, ToSql, FromSql)]
+//! #[postgres(name = "SessionId")]
 //! struct SessionId(Vec<u8>);
 //! ```
 //!
@@ -88,6 +90,7 @@
 //!
 //! # #[cfg(feature = "derive")]
 //! #[derive(Debug, ToSql, FromSql)]
+//! #[postgres(name = "InventoryItem")]
 //! struct InventoryItem {
 //!     name: String,
 //!     supplier_id: i32,
