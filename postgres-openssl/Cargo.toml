@@ -5,11 +5,9 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "TLS support for tokio-postgres via openssl"
-repository = "https://github.com/sfackler/rust-postgres"
+repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
-
-[badges]
-circle-ci = { repository = "sfackler/rust-postgres" }
+rust-version = "1.81"
 
 [features]
 default = ["runtime"]

@@ -5,10 +5,11 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "A native, asynchronous PostgreSQL client"
-repository = "https://github.com/sfackler/rust-postgres"
+repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
 categories = ["database"]
+rust-version = "1.81"
 
 [lib]
 test = false
@@ -19,9 +20,6 @@ harness = false
 
 [package.metadata.docs.rs]
 all-features = true
-
-[badges]
-circle-ci = { repository = "sfackler/rust-postgres" }
 
 [features]
 default = ["runtime"]
