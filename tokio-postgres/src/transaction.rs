@@ -1,5 +1,3 @@
-use crate::codec::FrontendMessage;
-use crate::connection::RequestMessages;
 use crate::copy_out::CopyOutStream;
 use crate::query::RowStream;
 #[cfg(feature = "runtime")]
@@ -14,7 +12,6 @@ use crate::{
 };
 use bytes::Buf;
 use futures_util::TryStreamExt;
-use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 /// A representation of a PostgreSQL database transaction.
@@ -39,19 +36,8 @@ impl Drop for Transaction<'_> {
             return;
         }
 
-        let query = if let Some(sp) = self.savepoint.as_ref() {
-            format!("ROLLBACK TO {}", sp.name)
-        } else {
-            "ROLLBACK".to_string()
-        };
-        let buf = self.client.inner().with_buf(|buf| {
-            frontend::query(&query, buf).unwrap();
-            buf.split().freeze()
-        });
-        let _ = self
-            .client
-            .inner()
-            .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
+        let name = self.savepoint.as_ref().map(|sp| sp.name.as_str());
+        self.client.__private_api_rollback(name);
     }
 }
 
