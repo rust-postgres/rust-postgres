@@ -145,6 +145,7 @@ pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
 pub use crate::transaction_builder::{IsolationLevel, TransactionBuilder};
 use crate::types::ToSql;
+pub use fallible_iterator;
 use std::sync::Arc;
 
 pub mod binary_copy;
