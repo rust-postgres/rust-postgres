@@ -12,7 +12,7 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use postgres_protocol::message::frontend::CopyData;
 use std::future;
-use std::marker::{PhantomData, PhantomPinned};
+use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{ready, Context, Poll};
 
@@ -74,14 +74,13 @@ pin_project! {
     ///
     /// The copy *must* be explicitly completed via the `Sink::close` or `finish` methods. If it is
     /// not, the copy will be aborted.
+    #[project(!Unpin)]
     pub struct CopyInSink<T> {
         #[pin]
         sender: mpsc::Sender<CopyInMessage>,
         responses: Responses,
         buf: BytesMut,
         state: SinkState,
-        #[pin]
-        _p: PhantomPinned,
         _p2: PhantomData<T>,
     }
 }
@@ -221,7 +220,6 @@ where
         responses,
         buf: BytesMut::new(),
         state: SinkState::Active,
-        _p: PhantomPinned,
         _p2: PhantomData,
     })
 }
