@@ -603,11 +603,6 @@ impl Client {
     }
 
     #[doc(hidden)]
-    pub fn __private_api_close(&mut self) {
-        self.inner.sender.close_channel()
-    }
-
-    #[doc(hidden)]
     pub fn __private_api_rollback(&self, name: Option<&str>) {
         let buf = self.inner().with_buf(|buf| {
             if let Some(name) = name {
@@ -620,6 +615,11 @@ impl Client {
         let _ = self
             .inner()
             .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
+    }
+
+    #[doc(hidden)]
+    pub fn __private_api_close(&mut self) {
+        self.inner.sender.close_channel()
     }
 }
 
