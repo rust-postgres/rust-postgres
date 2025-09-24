@@ -3,7 +3,7 @@ use quote::quote;
 use std::iter;
 use syn::Ident;
 
-use crate::composites::Field;
+use crate::composites::NamedField;
 use crate::enums::Variant;
 
 pub fn transparent_body(field: &syn::Field) -> TokenStream {
@@ -66,7 +66,7 @@ pub fn enum_body(name: &str, variants: &[Variant], allow_mismatch: bool) -> Toke
     }
 }
 
-pub fn composite_body(name: &str, trait_: &str, fields: &[Field]) -> TokenStream {
+pub fn composite_body(name: &str, trait_: &str, fields: &[NamedField]) -> TokenStream {
     let num_fields = fields.len();
     let trait_ = Ident::new(trait_, Span::call_site());
     let traits = iter::repeat(&trait_);
