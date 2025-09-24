@@ -38,7 +38,7 @@ with-time-0_3 = ["time-03"]
 bytes = "1.0"
 fallible-iterator = "0.2"
 postgres-protocol = { version = "0.6.8", path = "../postgres-protocol" }
-postgres-derive = { version = "0.4.6", optional = true, path = "../postgres-derive" }
+postgres-derive = { version = "0.4.7", optional = true, path = "../postgres-derive" }
 
 array-init = { version = "2", optional = true }
 bit-vec-06 = { version = "0.6", package = "bit-vec", optional = true }
