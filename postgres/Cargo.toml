@@ -41,7 +41,7 @@ with-time-0_3 = ["tokio-postgres/with-time-0_3"]
 
 [dependencies]
 bytes = "1.0"
-fallible-iterator = "0.2"
+fallible-iterator = "0.3"
 futures-util = { version = "0.3.14", features = ["sink"] }
 log = "0.4"
 tokio-postgres = { version = "0.7.13", path = "../tokio-postgres" }
