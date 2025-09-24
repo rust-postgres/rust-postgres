@@ -1,5 +1,12 @@
 # Change Log
 
+## v0.6.9 - 2025-09-25
+
+### Changed
+
+* Updated repository links to use `rust-postgres` organization.
+* Upgraded to Rust 2021 edition.
+
 ## v0.6.8 - 2025-02-02
 
 ### Changed
