@@ -628,7 +628,7 @@ impl Client {
     /// prepare, execute, and close) by requiring the caller to specify parameter values along with
     /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
     /// supported (such as Cloudflare Workers with Hyperdrive).
-
+    ///
     /// Executes a statement which returns a single row, returning it.
     ///
     /// Returns an error if the query does not return exactly one row.

@@ -918,12 +918,18 @@ async fn query_typed_one() {
         .unwrap();
 
     client
-        .query_typed_one("SELECT * FROM foo WHERE name = 'dave'", &[])
+        .query_typed_one(
+            "SELECT * FROM foo WHERE name = $1",
+            &[(&"dave", Type::TEXT)],
+        )
         .await
         .err()
         .unwrap();
     client
-        .query_typed_one("SELECT * FROM foo WHERE name = 'alice'", &[])
+        .query_typed_one(
+            "SELECT * FROM foo WHERE name = $1",
+            &[(&"alice", Type::TEXT)],
+        )
         .await
         .unwrap();
     client
@@ -982,12 +988,18 @@ async fn query_typed_opt() {
         .unwrap();
 
     assert!(client
-        .query_typed_opt("SELECT * FROM foo WHERE name = 'dave'", &[])
+        .query_typed_opt(
+            "SELECT * FROM foo WHERE name = $1",
+            &[(&"dave", Type::TEXT)]
+        )
         .await
         .unwrap()
         .is_none());
     client
-        .query_typed_opt("SELECT * FROM foo WHERE name = 'alice'", &[])
+        .query_typed_opt(
+            "SELECT * FROM foo WHERE name = $1",
+            &[(&"alice", Type::TEXT)],
+        )
         .await
         .unwrap()
         .unwrap();
