@@ -247,4 +247,32 @@ impl<'a> Transaction<'a> {
             .block_on(self.transaction.as_mut().unwrap().savepoint(name))?;
         Ok(Transaction::new(self.connection.as_ref(), transaction))
     }
+
+    /// Like `Client::query_typed_one`.
+    pub fn query_typed_one(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.connection.block_on(
+            self.transaction
+                .as_ref()
+                .unwrap()
+                .query_typed_one(query, params),
+        )
+    }
+
+    /// Like `Client::query_typed_opt`.
+    pub fn query_typed_opt(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        self.connection.block_on(
+            self.transaction
+                .as_ref()
+                .unwrap()
+                .query_typed_opt(query, params),
+        )
+    }
 }

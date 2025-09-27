@@ -19,7 +19,7 @@ use crate::{
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
-use futures_util::{StreamExt, TryStreamExt};
+use futures_util::{pin_mut, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
@@ -304,6 +304,70 @@ impl Client {
         T: ?Sized + ToStatement,
     {
         let mut stream = pin!(self.query_raw(statement, slice_iter(params)).await?);
+
+        let mut first = None;
+
+        // Originally this was two calls to `try_next().await?`,
+        // once for the first element, and second to error if more than one.
+        //
+        // However, this new form with only one .await in a loop generates
+        // slightly smaller codegen/stack usage for the resulting future.
+        while let Some(row) = stream.try_next().await? {
+            if first.is_some() {
+                return Err(Error::row_count());
+            }
+
+            first = Some(row);
+        }
+
+        Ok(first)
+    }
+
+    /// Like `query_one`, but requires the types of query parameters to be explicitly specified.
+    ///
+    /// Compared to `query_one`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// Executes a statement which returns a single row, returning it.
+    ///
+    /// Returns an error if the query does not return exactly one row.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    pub async fn query_typed_one(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.query_typed_opt(statement, params)
+            .await
+            .and_then(|res| res.ok_or_else(Error::row_count))
+    }
+
+    /// Like `query_one`, but requires the types of query parameters to be explicitly specified.
+    ///
+    /// Compared to `query_one`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the
+    /// parameter of the list provided, 1-indexed.
+    /// Executes a statements which returns zero or one rows, returning it.
+    ///
+    /// Returns an error if the query returns more than one row.
+    pub async fn query_typed_opt(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        let stream = self
+            .query_typed_raw(statement, params.iter().map(|(v, t)| (*v, t.clone())))
+            .await?;
+        pin_mut!(stream);
 
         let mut first = None;
 

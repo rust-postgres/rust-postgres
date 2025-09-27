@@ -315,4 +315,22 @@ impl<'a> Transaction<'a> {
     pub fn client(&self) -> &Client {
         self.client
     }
+
+    /// Like `Client::query_typed_one`.
+    pub async fn query_typed_one(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.client.query_typed_one(statement, params).await
+    }
+
+    /// Like `Client::query_typed_opt`.
+    pub async fn query_typed_opt(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        self.client.query_typed_opt(statement, params).await
+    }
 }
