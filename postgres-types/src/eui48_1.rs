@@ -16,9 +16,7 @@ impl<'a> FromSql<'a> for MacAddress {
 
 impl ToSql for MacAddress {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let mut bytes = [0; 6];
-        bytes.copy_from_slice(self.as_bytes());
-        types::macaddr_to_sql(bytes, w);
+        types::macaddr_to_sql(self.to_array(), w);
         Ok(IsNull::No)
     }
 

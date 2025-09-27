@@ -1,6 +1,25 @@
 # Change Log
 
-## Unreleased
+## v0.7.14 - 2025-09-25
+
+### Added
+
+* Added support for `jiff` v0.2.
+* Added support for `bit-vec` versions v0.7 and v0.8.
+* Re-exported `fallible-iterator`
+* Expose sync rollback as a private API method
+
+### Fixes
+
+* Changed `set_tcp_user_timeout` to only be called when enabled
+
+### Changed
+
+* Updated repository links to use `rust-postgres` organization.
+* Upgraded to Rust 2021 edition.
+* Upgraded `phf` to v0.13
+* Upgraded `socket2` to v0.6
+* Disabled default features of `futures-util`
 
 ## v0.7.13 - 2025-02-02
 
@@ -311,4 +330,4 @@
 
 Look at the [release tags] for information about older releases.
 
-[release tags]: https://github.com/sfackler/rust-postgres/releases
+[release tags]: https://github.com/rust-postgres/rust-postgres/releases

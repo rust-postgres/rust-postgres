@@ -3,13 +3,13 @@ pub use bytes::BytesMut;
 use std::error::Error;
 
 pub fn read_be_i32(buf: &mut &[u8]) -> Result<i32, Box<dyn Error + Sync + Send>> {
-    if buf.len() < 4 {
-        return Err("invalid buffer size".into());
-    }
-    let mut bytes = [0; 4];
-    bytes.copy_from_slice(&buf[..4]);
+    let val = buf
+        .get(..4)
+        .ok_or("invalid buffer size")?
+        .try_into()
+        .unwrap();
     *buf = &buf[4..];
-    Ok(i32::from_be_bytes(bytes))
+    Ok(i32::from_be_bytes(val))
 }
 
 pub fn read_value<'a, T>(
@@ -23,10 +23,9 @@ where
     let value = if len < 0 {
         None
     } else {
-        if len as usize > buf.len() {
-            return Err("invalid buffer size".into());
-        }
-        let (head, tail) = buf.split_at(len as usize);
+        let (head, tail) = buf
+            .split_at_checked(len as usize)
+            .ok_or("invalid buffer size")?;
         *buf = tail;
         Some(head)
     };

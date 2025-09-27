@@ -1,20 +1,23 @@
 [package]
 name = "postgres-types"
-version = "0.2.9"
+version = "0.2.10"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Conversions between Rust and Postgres values"
-repository = "https://github.com/sfackler/rust-postgres"
+repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 categories = ["database"]
+rust-version = "1.81"
 
 [features]
 derive = ["postgres-derive"]
 array-impls = ["array-init"]
 js = ["postgres-protocol/js"]
 with-bit-vec-0_6 = ["bit-vec-06"]
+with-bit-vec-0_7 = ["bit-vec-07"]
+with-bit-vec-0_8 = ["bit-vec-08"]
 with-cidr-0_2 = ["cidr-02"]
 with-cidr-0_3 = ["cidr-03"]
 with-chrono-0_4 = ["chrono-04"]
@@ -34,28 +37,30 @@ with-time-0_3 = ["time-03"]
 [dependencies]
 bytes = "1.0"
 fallible-iterator = "0.2"
-postgres-protocol = { version = "0.6.8", path = "../postgres-protocol" }
-postgres-derive = { version = "0.4.6", optional = true, path = "../postgres-derive" }
+postgres-protocol = { version = "0.6.9", path = "../postgres-protocol" }
+postgres-derive = { version = "0.4.7", optional = true, path = "../postgres-derive" }
 
 array-init = { version = "2", optional = true }
 bit-vec-06 = { version = "0.6", package = "bit-vec", optional = true }
+bit-vec-07 = { version = "0.7", package = "bit-vec", optional = true }
+bit-vec-08 = { version = "0.8", package = "bit-vec", optional = true }
 chrono-04 = { version = "0.4.16", package = "chrono", default-features = false, features = [
     "clock",
 ], optional = true }
 cidr-02 = { version = "0.2", package = "cidr", optional = true }
 cidr-03 = { version = "0.3", package = "cidr", optional = true }
 # eui48-04 will stop compiling and support will be removed
-# See https://github.com/sfackler/rust-postgres/issues/1073
-eui48-04 = { version = "0.4", package = "eui48", optional = true }
+# See https://github.com/rust-postgres/rust-postgres/issues/1073
+eui48-04 = { version = "0.4.6", package = "eui48", optional = true }
 eui48-1 = { version = "1.0", package = "eui48", optional = true, default-features = false }
 geo-types-06 = { version = "0.6", package = "geo-types", optional = true }
-geo-types-0_7 = { version = "0.7", package = "geo-types", optional = true }
-jiff-01 = { version = "0.1", package = "jiff", optional = true }
-jiff-02 = { version = "0.2", package = "jiff", optional = true }
-serde-1 = { version = "1.0", package = "serde", optional = true }
-serde_json-1 = { version = "1.0", package = "serde_json", optional = true }
+geo-types-0_7 = { version = "0.7.8", package = "geo-types", optional = true }
+jiff-01 = { version = "0.1", package = "jiff", default-features = false, features = ["std"], optional = true }
+jiff-02 = { version = "0.2", package = "jiff", default-features = false, features = ["std"], optional = true }
+serde-1 = { version = "1.0.221", package = "serde_core", optional = true }
+serde_json-1 = { version = "1.0.144", package = "serde_json", optional = true }
 uuid-08 = { version = "0.8", package = "uuid", optional = true }
 uuid-1 = { version = "1.0", package = "uuid", optional = true }
-time-02 = { version = "0.2", package = "time", optional = true }
-time-03 = { version = "0.3", package = "time", default-features = false, optional = true }
+time-02 = { version = "0.2.7", package = "time", optional = true }
+time-03 = { version = "0.3.5", package = "time", default-features = false, optional = true }
 smol_str-01 = { version = "0.1.23", package = "smol_str", default-features = false, optional = true }

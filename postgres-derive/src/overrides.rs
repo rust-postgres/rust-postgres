@@ -65,7 +65,7 @@ impl Overrides {
                                         "invalid rename_all rule, expected one of: {}",
                                         RENAME_RULES
                                             .iter()
-                                            .map(|rule| format!("\"{}\"", rule))
+                                            .map(|rule| format!("\"{rule}\""))
                                             .collect::<Vec<_>>()
                                             .join(", ")
                                     ),

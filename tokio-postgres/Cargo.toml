@@ -1,14 +1,15 @@
 [package]
 name = "tokio-postgres"
-version = "0.7.13"
+version = "0.7.14"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "A native, asynchronous PostgreSQL client"
-repository = "https://github.com/sfackler/rust-postgres"
+repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
 categories = ["database"]
+rust-version = "1.81"
 
 [lib]
 test = false
@@ -20,15 +21,14 @@ harness = false
 [package.metadata.docs.rs]
 all-features = true
 
-[badges]
-circle-ci = { repository = "sfackler/rust-postgres" }
-
 [features]
 default = ["runtime"]
 runtime = ["tokio/net", "tokio/time"]
 
 array-impls = ["postgres-types/array-impls"]
 with-bit-vec-0_6 = ["postgres-types/with-bit-vec-0_6"]
+with-bit-vec-0_7 = ["postgres-types/with-bit-vec-0_7"]
+with-bit-vec-0_8 = ["postgres-types/with-bit-vec-0_8"]
 with-chrono-0_4 = ["postgres-types/with-chrono-0_4"]
 with-cidr-0_2 = ["postgres-types/with-cidr-0_2"]
 with-cidr-0_3 = ["postgres-types/with-cidr-0_3"]
@@ -52,25 +52,26 @@ bytes = "1.0"
 byteorder = "1.0"
 fallible-iterator = "0.2"
 futures-channel = { version = "0.3", features = ["sink"] }
-futures-util = { version = "0.3", features = ["sink"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 log = "0.4"
 parking_lot = "0.12"
 percent-encoding = "2.0"
-pin-project-lite = "0.2"
-phf = "0.11"
-postgres-protocol = { version = "0.6.8", path = "../postgres-protocol" }
-postgres-types = { version = "0.2.9", path = "../postgres-types" }
+pin-project-lite = "0.2.11"
+phf = "0.13"
+postgres-protocol = { version = "0.6.9", path = "../postgres-protocol" }
+postgres-types = { version = "0.2.10", path = "../postgres-types" }
 tokio = { version = "1.27", features = ["io-util"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 rand = "0.9.0"
 whoami = "1.4.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-socket2 = { version = "0.5", features = ["all"] }
+socket2 = { version = "0.6", features = ["all"] }
 
 [dev-dependencies]
+futures-util = { version = "0.3", default-features = false, features = ["async-await-macro"] }
 futures-executor = "0.3"
-criterion = "0.6"
+criterion = "0.7"
 env_logger = "0.11"
 tokio = { version = "1.0", features = [
     "macros",
@@ -81,13 +82,14 @@ tokio = { version = "1.0", features = [
 ] }
 
 bit-vec-06 = { version = "0.6", package = "bit-vec" }
+bit-vec-07 = { version = "0.7", package = "bit-vec" }
+bit-vec-08 = { version = "0.8", package = "bit-vec" }
 chrono-04 = { version = "0.4", package = "chrono", default-features = false }
 eui48-1 = { version = "1.0", package = "eui48", default-features = false }
 geo-types-06 = { version = "0.6", package = "geo-types" }
 geo-types-07 = { version = "0.7", package = "geo-types" }
 jiff-01 = { version = "0.1", package = "jiff" }
 jiff-02 = { version = "0.2", package = "jiff" }
-serde-1 = { version = "1.0", package = "serde" }
 serde_json-1 = { version = "1.0", package = "serde_json" }
 smol_str-01 = { version = "0.1", package = "smol_str" }
 uuid-08 = { version = "0.8", package = "uuid" }

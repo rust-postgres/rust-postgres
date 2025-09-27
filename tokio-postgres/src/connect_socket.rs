@@ -45,7 +45,7 @@ pub(crate) async fn connect_socket(
         }
         #[cfg(unix)]
         Addr::Unix(dir) => {
-            let path = dir.join(format!(".s.PGSQL.{}", port));
+            let path = dir.join(format!(".s.PGSQL.{port}"));
             let socket = connect_with_timeout(UnixStream::connect(path), connect_timeout).await?;
             Ok(Socket::new_unix(socket))
         }

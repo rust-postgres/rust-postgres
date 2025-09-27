@@ -161,7 +161,7 @@ async fn test_special_params_without_wrapper() {
         T: FromSqlOwned + fmt::Debug,
     {
         let err = client
-            .query_one(&*format!("SELECT {}::{}", val, sql_type), &[])
+            .query_one(&*format!("SELECT {val}::{sql_type}"), &[])
             .await
             .unwrap()
             .try_get::<_, T>(0)

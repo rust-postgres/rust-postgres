@@ -2,12 +2,11 @@
 
 use bytes::{Bytes, BytesMut};
 use futures_channel::mpsc;
-use futures_util::{
-    future, join, pin_mut, stream, try_join, Future, FutureExt, SinkExt, StreamExt, TryStreamExt,
-};
+use futures_util::{join, stream, try_join, FutureExt, SinkExt, StreamExt, TryStreamExt};
 use pin_project_lite::pin_project;
 use std::fmt::Write;
-use std::pin::Pin;
+use std::future::{self, Future};
+use std::pin::{pin, Pin};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::net::TcpStream;
@@ -589,8 +588,7 @@ async fn copy_in() {
         .into_iter()
         .map(Ok::<_, Error>),
     );
-    let sink = client.copy_in("COPY foo FROM STDIN").await.unwrap();
-    pin_mut!(sink);
+    let mut sink = pin!(client.copy_in("COPY foo FROM STDIN").await.unwrap());
     sink.send_all(&mut stream).await.unwrap();
     let rows = sink.finish().await.unwrap();
     assert_eq!(rows, 2);
@@ -624,11 +622,11 @@ async fn copy_in_large() {
     let a = Bytes::from_static(b"0\tname0\n");
     let mut b = BytesMut::new();
     for i in 1..5_000 {
-        writeln!(b, "{0}\tname{0}", i).unwrap();
+        writeln!(b, "{i}\tname{i}").unwrap();
     }
     let mut c = BytesMut::new();
     for i in 5_000..10_000 {
-        writeln!(c, "{0}\tname{0}", i).unwrap();
+        writeln!(c, "{i}\tname{i}").unwrap();
     }
     let mut stream = stream::iter(
         vec![a, b.freeze(), c.freeze()]
@@ -636,8 +634,7 @@ async fn copy_in_large() {
             .map(Ok::<_, Error>),
     );
 
-    let sink = client.copy_in("COPY foo FROM STDIN").await.unwrap();
-    pin_mut!(sink);
+    let mut sink = pin!(client.copy_in("COPY foo FROM STDIN").await.unwrap());
     sink.send_all(&mut stream).await.unwrap();
     let rows = sink.finish().await.unwrap();
     assert_eq!(rows, 10_000);
@@ -658,8 +655,7 @@ async fn copy_in_error() {
         .unwrap();
 
     {
-        let sink = client.copy_in("COPY foo FROM STDIN").await.unwrap();
-        pin_mut!(sink);
+        let mut sink = pin!(client.copy_in("COPY foo FROM STDIN").await.unwrap());
         sink.send(Bytes::from_static(b"1\tsteven")).await.unwrap();
     }
 
@@ -704,7 +700,7 @@ async fn copy_out() {
 async fn notices() {
     let long_name = "x".repeat(65);
     let (client, mut connection) =
-        connect_raw(&format!("user=postgres application_name={}", long_name,))
+        connect_raw(&format!("user=postgres application_name={long_name}",))
             .await
             .unwrap();
 
@@ -966,7 +962,7 @@ async fn query_opt() {
         .unwrap()
         .unwrap();
     client
-        .query_one("SELECT * FROM foo", &[])
+        .query_opt("SELECT * FROM foo", &[])
         .await
         .err()
         .unwrap();

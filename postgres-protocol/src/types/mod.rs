@@ -639,11 +639,10 @@ impl<'a> FallibleIterator for ArrayValues<'a> {
         let val = if len < 0 {
             None
         } else {
-            if self.buf.len() < len as usize {
-                return Err("invalid value length".into());
-            }
-
-            let (val, buf) = self.buf.split_at(len as usize);
+            let (val, buf) = self
+                .buf
+                .split_at_checked(len as usize)
+                .ok_or("invalid value length")?;
             self.buf = buf;
             Some(val)
         };
@@ -771,10 +770,7 @@ fn read_bound<'a>(
             None
         } else {
             let len = len as usize;
-            if buf.len() < len {
-                return Err("invalid message size".into());
-            }
-            let (value, tail) = buf.split_at(len);
+            let (value, tail) = buf.split_at_checked(len).ok_or("invalid message size")?;
             *buf = tail;
             Some(value)
         };

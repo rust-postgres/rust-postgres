@@ -3,9 +3,9 @@
 use crate::connection::ConnectionRef;
 use crate::{Error, Notification};
 use fallible_iterator::FallibleIterator;
-use futures_util::{ready, FutureExt};
+use futures_util::FutureExt;
 use std::pin::Pin;
-use std::task::Poll;
+use std::task::{ready, Poll};
 use std::time::Duration;
 use tokio::time::{self, Instant, Sleep};
 

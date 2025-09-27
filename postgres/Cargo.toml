@@ -1,14 +1,15 @@
 [package]
 name = "postgres"
-version = "0.19.10"
+version = "0.19.11"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "A native, synchronous PostgreSQL client"
-repository = "https://github.com/sfackler/rust-postgres"
+repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 categories = ["database"]
+rust-version = "1.81"
 
 [[bench]]
 name = "bench"
@@ -17,12 +18,11 @@ harness = false
 [package.metadata.docs.rs]
 all-features = true
 
-[badges]
-circle-ci = { repository = "sfackler/rust-postgres" }
-
 [features]
 array-impls = ["tokio-postgres/array-impls"]
 with-bit-vec-0_6 = ["tokio-postgres/with-bit-vec-0_6"]
+with-bit-vec-0_7 = ["tokio-postgres/with-bit-vec-0_7"]
+with-bit-vec-0_8 = ["tokio-postgres/with-bit-vec-0_8"]
 with-chrono-0_4 = ["tokio-postgres/with-chrono-0_4"]
 with-cidr-0_2 = ["tokio-postgres/with-cidr-0_2"]
 with-cidr-0_3 = ["tokio-postgres/with-cidr-0_3"]
@@ -44,8 +44,8 @@ bytes = "1.0"
 fallible-iterator = "0.2"
 futures-util = { version = "0.3.14", features = ["sink"] }
 log = "0.4"
-tokio-postgres = { version = "0.7.13", path = "../tokio-postgres" }
+tokio-postgres = { version = "0.7.14", path = "../tokio-postgres" }
 tokio = { version = "1.0", features = ["rt", "time"] }
 
 [dev-dependencies]
-criterion = "0.6"
+criterion = "0.7"

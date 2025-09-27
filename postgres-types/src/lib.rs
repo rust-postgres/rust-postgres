@@ -264,6 +264,10 @@ where
 
 #[cfg(feature = "with-bit-vec-0_6")]
 mod bit_vec_06;
+#[cfg(feature = "with-bit-vec-0_7")]
+mod bit_vec_07;
+#[cfg(feature = "with-bit-vec-0_8")]
+mod bit_vec_08;
 #[cfg(feature = "with-chrono-0_4")]
 mod chrono_04;
 #[cfg(feature = "with-cidr-0_2")]
@@ -319,7 +323,7 @@ impl fmt::Display for Type {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.schema() {
             "public" | "pg_catalog" => {}
-            schema => write!(fmt, "{}.", schema)?,
+            schema => write!(fmt, "{schema}.")?,
         }
         fmt.write_str(self.name())
     }
@@ -631,16 +635,14 @@ impl<'a, T: FromSql<'a>, const N: usize> FromSql<'a> for [T; N] {
             let v = values
                 .next()?
                 .ok_or_else(|| -> Box<dyn Error + Sync + Send> {
-                    format!("too few elements in array (expected {}, got {})", N, i).into()
+                    format!("too few elements in array (expected {N}, got {i})").into()
                 })?;
             T::from_sql_nullable(member_type, v)
         })?;
         if values.next()?.is_some() {
-            return Err(format!(
-                "excess elements in array (expected {}, got more than that)",
-                N,
-            )
-            .into());
+            return Err(
+                format!("excess elements in array (expected {N}, got more than that)",).into(),
+            );
         }
 
         Ok(out)
@@ -872,6 +874,9 @@ pub enum IsNull {
 /// `ToSql` is implemented for `[u8; N]`, `Vec<T>`, `&[T]`, `Box<[T]>` and `[T; N]`
 /// where `T` implements `ToSql` and `N` is const usize, and corresponds to one-dimensional
 /// Postgres arrays with an index offset of 1.
+/// To make conversion work correctly for `WHERE ... IN` clauses, for example
+/// `WHERE col IN ($1)`, you may instead have to use the construct
+/// `WHERE col = ANY ($1)` which expects an array.
 ///
 /// **Note:** the impl for arrays only exist when the Cargo feature `array-impls`
 /// is enabled.

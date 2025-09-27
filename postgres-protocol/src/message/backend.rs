@@ -235,7 +235,7 @@ impl Message {
                 tag => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        format!("unknown authentication tag `{}`", tag),
+                        format!("unknown authentication tag `{tag}`"),
                     ));
                 }
             },
@@ -262,7 +262,7 @@ impl Message {
             tag => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    format!("unknown message tag `{}`", tag),
+                    format!("unknown message tag `{tag}`"),
                 ));
             }
         };
