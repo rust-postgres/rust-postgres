@@ -533,6 +533,12 @@ impl Client {
         simple_query::batch_execute(self.inner(), query).await
     }
 
+    /// Check the connection is alive and wait for the confirmation.
+    pub async fn check_connection(&self) -> Result<(), Error> {
+        // sync is a very quick message to test the connection health.
+        query::sync(self.inner()).await
+    }
+
     /// Begins a new database transaction.
     ///
     /// The transaction will roll back by default - use the `commit` method to commit it.
