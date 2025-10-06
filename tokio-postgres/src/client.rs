@@ -2,7 +2,7 @@ use crate::codec::{BackendMessages, FrontendMessage};
 use crate::config::{SslMode, SslNegotiation};
 use crate::connection::{Request, RequestMessages};
 use crate::copy_out::CopyOutStream;
-#[cfg(feature = "runtime")]
+#[cfg(all(feature = "runtime", not(target_arch = "wasm32")))]
 use crate::keepalive::KeepaliveConfig;
 use crate::query::RowStream;
 use crate::simple_query::SimpleQueryStream;
@@ -29,7 +29,7 @@ use std::fmt;
 use std::future;
 #[cfg(feature = "runtime")]
 use std::net::IpAddr;
-#[cfg(feature = "runtime")]
+#[cfg(all(feature = "runtime", unix))]
 use std::path::PathBuf;
 use std::pin::pin;
 use std::sync::Arc;
@@ -163,6 +163,7 @@ pub(crate) struct SocketConfig {
     pub port: u16,
     pub connect_timeout: Option<Duration>,
     pub tcp_user_timeout: Option<Duration>,
+    #[cfg(not(target_arch = "wasm32"))]
     pub keepalive: Option<KeepaliveConfig>,
 }
 
