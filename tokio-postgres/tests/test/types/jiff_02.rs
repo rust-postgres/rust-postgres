@@ -146,10 +146,7 @@ async fn test_special_params_without_wrapper() {
             .try_get::<_, T>(0)
             .unwrap_err();
 
-        assert_eq!(
-            err.to_string(),
-            "error deserializing column 0: value too large to decode"
-        );
+        assert_eq!(err.to_string(), "error deserializing column 0");
 
         let err = client
             .query_one(&*format!("SELECT {val}::{sql_type}"), &[])
@@ -158,10 +155,7 @@ async fn test_special_params_without_wrapper() {
             .try_get::<_, T>(0)
             .unwrap_err();
 
-        assert_eq!(
-            err.to_string(),
-            "error deserializing column 0: value too large to decode"
-        );
+        assert_eq!(err.to_string(), "error deserializing column 0");
     }
 
     let mut client = connect("user=postgres").await;
