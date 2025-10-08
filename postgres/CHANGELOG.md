@@ -1,5 +1,16 @@
 # Change Log
 
+## v0.19.12 - 2025-10-08
+
+### Added
+
+* Added `Client::check_connection` API.
+
+### Changed
+
+* Improved the effectiveness of `Client::is_closed`.
+* Disabled default features of `futures-util`.
+
 ## v0.19.11 - 2025-09-25
 
 ### Added
