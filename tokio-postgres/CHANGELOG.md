@@ -1,5 +1,17 @@
 # Change Log
 
+## v0.7.15 - 2025-10-08
+
+### Added
+
+* Added `Client::check_connection` API.
+* Added `Client::simple_query_raw` API.
+
+### Changed
+
+* Improved the effectiveness of `Client::is_closed`.
+* Stop including error chain in `Display` impl of `Error`
+
 ## v0.7.14 - 2025-09-25
 
 ### Added
