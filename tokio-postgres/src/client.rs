@@ -515,7 +515,20 @@ impl Client {
         self.simple_query_raw(query).await?.try_collect().await
     }
 
-    pub(crate) async fn simple_query_raw(&self, query: &str) -> Result<SimpleQueryStream, Error> {
+    /// Executes a sequence of SQL statements using the simple query protocol, returning the resulting rows as a stream.
+    ///
+    /// Statements should be separated by semicolons. If an error occurs, execution of the sequence will stop at that
+    /// point. The simple query protocol returns the values in rows as strings rather than in their binary encodings,
+    /// so the associated row type doesn't work with the `FromSql` trait. Rather than simply returning a list of the
+    /// rows, this method returns a list of an enum which indicates either the completion of one of the commands,
+    /// or a row of data. This preserves the framing between the separate statements in the request.
+    ///
+    /// # Warning
+    ///
+    /// Prepared statements should be use for any query which contains user-specified data, as they provided the
+    /// functionality to safely embed that data in the request. Do not form statements via string concatenation and pass
+    /// them to this method!
+    pub async fn simple_query_raw(&self, query: &str) -> Result<SimpleQueryStream, Error> {
         simple_query::simple_query(self.inner(), query).await
     }
 
