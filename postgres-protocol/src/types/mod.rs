@@ -10,6 +10,9 @@ use std::str;
 
 use crate::{write_nullable, FromUsize, IsNull, Lsn, Oid};
 
+pub use numeric::{numeric_from_sql, numeric_to_sql, Numeric, NumericSign};
+
+mod numeric;
 #[cfg(test)]
 mod test;
 
