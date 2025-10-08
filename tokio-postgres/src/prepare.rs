@@ -99,6 +99,7 @@ pub async fn prepare(
                 name: field.name().to_string(),
                 table_oid: Some(field.table_oid()).filter(|n| *n != 0),
                 column_id: Some(field.column_id()).filter(|n| *n != 0),
+                type_modifier: field.type_modifier(),
                 r#type: type_,
             };
             columns.push(column);
