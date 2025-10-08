@@ -1,6 +1,6 @@
 [package]
 name = "postgres-types"
-version = "0.2.10"
+version = "0.2.11"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"

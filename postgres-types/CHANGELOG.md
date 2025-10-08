@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.2.11 - 2025-10-08
+
+### Changed
+
+* Disabled default features of `jiff` v0.1 and v0.2.
+
 ## v0.2.10 - 2025-09-25
 
 ### Added
