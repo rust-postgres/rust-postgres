@@ -25,6 +25,13 @@ pub trait GenericClient: private::Sealed {
         I: IntoIterator<Item = P> + Sync + Send,
         I::IntoIter: ExactSizeIterator;
 
+    /// Like [`Client::execute_typed`].
+    async fn execute_typed(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error>;
+
     /// Like [`Client::query`].
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
@@ -62,6 +69,20 @@ pub trait GenericClient: private::Sealed {
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error>;
+
+    /// Like [`Client::query_one_typed`].
+    async fn query_typed_one(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error>;
+
+    /// Like [`Client::query_opt_typed`].
+    async fn query_typed_opt(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error>;
 
     /// Like [`Client::query_typed_raw`]
     async fn query_typed_raw<P, I>(&self, statement: &str, params: I) -> Result<RowStream, Error>
@@ -101,6 +122,14 @@ impl GenericClient for Client {
         T: ?Sized + ToStatement + Sync + Send,
     {
         self.execute(query, params).await
+    }
+
+    async fn execute_typed(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error> {
+        self.execute_typed(statement, params).await
     }
 
     async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
@@ -158,6 +187,23 @@ impl GenericClient for Client {
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error> {
         self.query_typed(statement, params).await
+    }
+
+    async fn query_typed_one(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.query_typed_one(statement, params).await
+    }
+
+    /// Like [`Client::query_opt_typed`].
+    async fn query_typed_opt(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        self.query_typed_opt(statement, params).await
     }
 
     async fn query_typed_raw<P, I>(&self, statement: &str, params: I) -> Result<RowStream, Error>
@@ -266,6 +312,23 @@ impl GenericClient for Transaction<'_> {
         self.query_typed(statement, params).await
     }
 
+    async fn query_typed_one(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.query_typed_one(statement, params).await
+    }
+
+    /// Like [`Client::query_opt_typed`].
+    async fn query_typed_opt(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        self.query_typed_opt(statement, params).await
+    }
+
     async fn query_typed_raw<P, I>(&self, statement: &str, params: I) -> Result<RowStream, Error>
     where
         P: BorrowToSql,
@@ -301,5 +364,13 @@ impl GenericClient for Transaction<'_> {
 
     fn client(&self) -> &Client {
         self.client()
+    }
+
+    async fn execute_typed(
+        &self,
+        statement: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error> {
+        self.client().execute_typed(statement, params).await
     }
 }

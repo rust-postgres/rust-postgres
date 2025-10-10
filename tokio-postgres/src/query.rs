@@ -119,6 +119,58 @@ where
     }
 }
 
+pub async fn execute_typed<P, I>(
+    client: &Arc<InnerClient>,
+    query: &str,
+    params: I,
+) -> Result<u64, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = (P, Type)>,
+{
+    let buf = {
+        let params = params.into_iter().collect::<Vec<_>>();
+        let param_oids = params.iter().map(|(_, t)| t.oid()).collect::<Vec<_>>();
+
+        client.with_buf(|buf| {
+            frontend::parse("", query, param_oids.into_iter(), buf).map_err(Error::parse)?;
+            encode_bind_raw("", params, "", buf)?;
+            frontend::describe(b'S', "", buf).map_err(Error::encode)?;
+            frontend::execute("", 0, buf).map_err(Error::encode)?;
+            frontend::sync(buf);
+
+            Ok(buf.split().freeze())
+        })?
+    };
+
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+    let mut rows = 0;
+
+    loop {
+        match responses.next().await? {
+            Message::ParseComplete
+            | Message::BindComplete
+            | Message::ParameterDescription(_)
+            | Message::RowDescription(_) => {}
+            Message::NoData => {
+                rows = 0;
+            }
+
+            Message::DataRow(_) => {}
+            Message::CommandComplete(body) => {
+                rows = extract_row_affected(&body)?;
+            }
+
+            Message::EmptyQueryResponse => rows = 0,
+            Message::ReadyForQuery(_) => return Ok(rows),
+            _ => {
+                return Err(Error::unexpected_message());
+            }
+        }
+    }
+}
+
 pub async fn query_portal(
     client: &InnerClient,
     portal: &Portal,
