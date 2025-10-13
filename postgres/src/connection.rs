@@ -1,9 +1,9 @@
 use crate::{Error, Notification};
-use futures_util::{future, pin_mut, Stream};
+use futures_util::Stream;
 use std::collections::VecDeque;
-use std::future::Future;
+use std::future::{self, Future};
 use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
+use std::pin::{pin, Pin};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -52,7 +52,7 @@ impl Connection {
     where
         F: Future<Output = Result<T, Error>>,
     {
-        pin_mut!(future);
+        let mut future = pin!(future);
         self.poll_block_on(|cx, _, _| future.as_mut().poll(cx))
     }
 

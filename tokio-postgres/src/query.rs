@@ -6,17 +6,16 @@ use crate::types::{BorrowToSql, IsNull};
 use crate::{Column, Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
-use futures_util::{ready, Stream};
+use futures_util::Stream;
 use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
 use postgres_types::Type;
 use std::fmt;
-use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
 
@@ -57,7 +56,6 @@ where
         statement,
         responses,
         rows_affected: None,
-        _p: PhantomPinned,
     })
 }
 
@@ -95,7 +93,6 @@ where
                     statement: Statement::unnamed(vec![], vec![]),
                     responses,
                     rows_affected: None,
-                    _p: PhantomPinned,
                 });
             }
             Message::RowDescription(row_description) => {
@@ -115,7 +112,6 @@ where
                     statement: Statement::unnamed(vec![], columns),
                     responses,
                     rows_affected: None,
-                    _p: PhantomPinned,
                 });
             }
             _ => return Err(Error::unexpected_message()),
@@ -140,7 +136,6 @@ pub async fn query_portal(
         statement: portal.statement().clone(),
         responses,
         rows_affected: None,
-        _p: PhantomPinned,
     })
 }
 
@@ -285,12 +280,11 @@ where
 
 pin_project! {
     /// A stream of table rows.
+    #[project(!Unpin)]
     pub struct RowStream {
         statement: Statement,
         responses: Responses,
         rows_affected: Option<u64>,
-        #[pin]
-        _p: PhantomPinned,
     }
 }
 
@@ -321,5 +315,15 @@ impl RowStream {
     /// This function will return `None` until the stream has been exhausted.
     pub fn rows_affected(&self) -> Option<u64> {
         self.rows_affected
+    }
+}
+
+pub async fn sync(client: &InnerClient) -> Result<(), Error> {
+    let buf = Bytes::from_static(b"S\0\0\0\x04");
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+    match responses.next().await? {
+        Message::ReadyForQuery(_) => Ok(()),
+        _ => Err(Error::unexpected_message()),
     }
 }

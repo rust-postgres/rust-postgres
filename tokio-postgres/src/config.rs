@@ -1,5 +1,7 @@
 //! Connection configuration.
 
+#![allow(clippy::doc_overindented_list_items)]
+
 #[cfg(feature = "runtime")]
 use crate::connect::connect;
 use crate::connect_raw::connect_raw;
@@ -178,7 +180,7 @@ pub enum Host {
 /// ```
 ///
 /// ```not_rust
-/// host=/var/lib/postgresql,localhost port=1234 user=postgres password='password with spaces'
+/// host=/var/run/postgresql,localhost port=1234 user=postgres password='password with spaces'
 /// ```
 ///
 /// ```not_rust
@@ -203,7 +205,7 @@ pub enum Host {
 /// ```
 ///
 /// ```not_rust
-/// postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10
+/// postgresql://user:password@%2Fvar%2Frun%2Fpostgresql/mydb?connect_timeout=10
 /// ```
 ///
 /// ```not_rust
@@ -211,7 +213,7 @@ pub enum Host {
 /// ```
 ///
 /// ```not_rust
-/// postgresql:///mydb?user=user&host=/var/lib/postgresql
+/// postgresql:///mydb?user=user&host=/var/run/postgresql
 /// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Config {
@@ -870,10 +872,8 @@ impl<'a> Parser<'a> {
         match self.it.next() {
             Some((_, c)) if c == target => Ok(()),
             Some((i, c)) => {
-                let m = format!(
-                    "unexpected character at byte {}: expected `{}` but got `{}`",
-                    i, target, c
-                );
+                let m =
+                    format!("unexpected character at byte {i}: expected `{target}` but got `{c}`");
                 Err(Error::config_parse(m.into()))
             }
             None => Err(Error::config_parse("unexpected EOF".into())),

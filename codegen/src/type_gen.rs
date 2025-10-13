@@ -237,7 +237,7 @@ fn parse_types() -> BTreeMap<u32, Type> {
         let doc_name = array_re.replace(&name, "$1[]").to_ascii_uppercase();
         let mut doc = doc_name.clone();
         if let Some(descr) = raw_type.get("descr") {
-            write!(doc, " - {}", descr).unwrap();
+            write!(doc, " - {descr}").unwrap();
         }
         let doc = Escape::new(doc.as_bytes().iter().cloned()).collect();
         let doc = String::from_utf8(doc).unwrap();
@@ -245,10 +245,10 @@ fn parse_types() -> BTreeMap<u32, Type> {
         if let Some(array_type_oid) = raw_type.get("array_type_oid") {
             let array_type_oid = array_type_oid.parse::<u32>().unwrap();
 
-            let name = format!("_{}", name);
-            let variant = format!("{}Array", variant);
-            let doc = format!("{}&#91;&#93;", doc_name);
-            let ident = format!("{}_ARRAY", ident);
+            let name = format!("_{name}");
+            let variant = format!("{variant}Array");
+            let doc = format!("{doc_name}&#91;&#93;");
+            let ident = format!("{ident}_ARRAY");
 
             let type_ = Type {
                 name,

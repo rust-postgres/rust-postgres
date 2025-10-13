@@ -41,7 +41,7 @@ impl BufRead for CopyOutReader<'_> {
                 .block_on(async { stream.next().await.transpose() })
             {
                 Ok(Some(cur)) => self.cur = cur,
-                Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
+                Err(e) => return Err(io::Error::other(e)),
                 Ok(None) => break,
             };
         }

@@ -508,3 +508,24 @@ fn check_send() {
     is_send::<Statement>();
     is_send::<Transaction<'_>>();
 }
+
+#[test]
+fn is_closed() {
+    let mut client = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+    assert!(!client.is_closed());
+    client.check_connection().unwrap();
+
+    let row = client.query_one("select pg_backend_pid()", &[]).unwrap();
+    let pid: i32 = row.get(0);
+
+    {
+        let mut client2 = Client::connect("host=localhost port=5433 user=postgres", NoTls).unwrap();
+        client2
+            .query("SELECT pg_terminate_backend($1)", &[&pid])
+            .unwrap();
+    }
+
+    assert!(!client.is_closed());
+    client.check_connection().unwrap_err();
+    assert!(client.is_closed());
+}
