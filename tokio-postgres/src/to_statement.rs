@@ -1,5 +1,7 @@
-use crate::to_statement::private::{Sealed, ToStatementType};
-use crate::Statement;
+use crate::{
+    to_statement::private::{Sealed, ToStatementType},
+    Statement,
+};
 
 mod private {
     use crate::{Client, Error, Statement};
@@ -47,10 +49,11 @@ impl ToStatement for str {
 }
 
 impl Sealed for str {}
+impl Sealed for &str {}
 
-impl ToStatement for String {
+impl<T: Sealed + AsRef<str>> ToStatement for T {
     fn __convert(&self) -> ToStatementType<'_> {
-        ToStatementType::Query(self)
+        ToStatementType::Query(self.as_ref())
     }
 }
 
