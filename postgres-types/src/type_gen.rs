@@ -700,7 +700,7 @@ impl Inner {
             Inner::LanguageHandler => &Kind::Pseudo,
             Inner::Internal => &Kind::Pseudo,
             Inner::Anyelement => &Kind::Pseudo,
-            Inner::RecordArray => &Kind::Pseudo,
+            Inner::RecordArray => &Kind::Array(Type(Inner::Record)),
             Inner::Anynonarray => &Kind::Pseudo,
             Inner::TxidSnapshotArray => &Kind::Array(Type(Inner::TxidSnapshot)),
             Inner::Uuid => &Kind::Simple,
