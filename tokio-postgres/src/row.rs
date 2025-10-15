@@ -184,6 +184,11 @@ impl Row {
         FromSql::from_sql_nullable(ty, self.col_buffer(idx)).map_err(|e| Error::from_sql(e, idx))
     }
 
+    /// Returns the raw size of the row in bytes.
+    pub fn raw_size_bytes(&self) -> usize {
+        self.body.buffer_bytes().len()
+    }
+
     /// Get the raw bytes for the column at the given index.
     fn col_buffer(&self, idx: usize) -> Option<&[u8]> {
         let range = self.ranges[idx].to_owned()?;
