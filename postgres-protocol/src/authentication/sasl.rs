@@ -205,7 +205,7 @@ impl ScramSha256 {
         let client_key = hmac.finalize().into_bytes();
 
         let mut hash = Sha256::default();
-        hash.update(client_key.as_slice());
+        hash.update(client_key);
         let stored_key = hash.finalize_fixed();
 
         let mut cbind_input = vec![];
