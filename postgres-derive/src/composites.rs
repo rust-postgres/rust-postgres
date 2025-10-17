@@ -1,23 +1,27 @@
+use lifetimes::extract_borrowed_lifetimes;
 use proc_macro2::Span;
 use syn::{
-    punctuated::Punctuated, Error, GenericParam, Generics, Ident, Path, PathSegment, Type,
-    TypeParamBound,
+    punctuated::Punctuated, Error, GenericParam, Generics, Ident, Lifetime, Path, PathSegment,
+    Type, TypeParamBound,
 };
 
-use crate::{case::RenameRule, overrides::Overrides};
+use crate::{case::RenameRule, lifetimes, overrides::Overrides};
 
-pub struct Field {
+pub struct NamedField {
     pub name: String,
     pub ident: Ident,
     pub type_: Type,
+    pub borrowed_lifetimes: Vec<Lifetime>,
 }
 
-impl Field {
-    pub fn parse(raw: &syn::Field, rename_all: Option<RenameRule>) -> Result<Field, Error> {
+impl NamedField {
+    pub fn parse(raw: &syn::Field, rename_all: Option<RenameRule>) -> Result<NamedField, Error> {
         let overrides = Overrides::extract(&raw.attrs, false)?;
         let ident = raw.ident.as_ref().unwrap().clone();
 
-        // field level name override takes precendence over container level rename_all override
+        let borrowed_lifetimes = extract_borrowed_lifetimes(raw, &overrides);
+
+        // field level name override takes precedence over container level rename_all override
         let name = match overrides.name {
             Some(n) => n,
             None => {
@@ -31,10 +35,11 @@ impl Field {
             }
         };
 
-        Ok(Field {
+        Ok(NamedField {
             name,
             ident,
             type_: raw.ty.clone(),
+            borrowed_lifetimes,
         })
     }
 }
