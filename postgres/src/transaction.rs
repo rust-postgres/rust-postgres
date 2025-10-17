@@ -70,6 +70,20 @@ impl<'a> Transaction<'a> {
             .block_on(self.transaction.as_ref().unwrap().execute(query, params))
     }
 
+    /// Like `Client::execute_typed`.
+    pub fn execute_typed(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error> {
+        self.connection.block_on(
+            self.transaction
+                .as_ref()
+                .unwrap()
+                .execute_typed(query, params),
+        )
+    }
+
     /// Like `Client::query`.
     pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
@@ -126,6 +140,34 @@ impl<'a> Transaction<'a> {
                 .as_ref()
                 .unwrap()
                 .query_typed(statement, params),
+        )
+    }
+
+    /// Like `Client::query_typed_one`.
+    pub fn query_typed_one(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.connection.block_on(
+            self.transaction
+                .as_ref()
+                .unwrap()
+                .query_typed_one(query, params),
+        )
+    }
+
+    /// Like `Client::query_typed_opt`.
+    pub fn query_typed_opt(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        self.connection.block_on(
+            self.transaction
+                .as_ref()
+                .unwrap()
+                .query_typed_opt(query, params),
         )
     }
 

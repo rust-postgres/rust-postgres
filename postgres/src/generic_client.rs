@@ -17,6 +17,13 @@ pub trait GenericClient: private::Sealed {
     where
         T: ?Sized + ToStatement;
 
+    /// Like `Client::execute_typed`.
+    fn execute_typed(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error>;
+
     /// Like `Client::query`.
     fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
@@ -50,6 +57,20 @@ pub trait GenericClient: private::Sealed {
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error>;
+
+    /// Like `Client::query_typed_one`.
+    fn query_typed_one(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error>;
+
+    /// Like `Client::query_typed_opt`.
+    fn query_typed_opt(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error>;
 
     /// Like [`Client::query_typed_raw`]
     fn query_typed_raw<P, I>(&mut self, statement: &str, params: I) -> Result<RowIter<'_>, Error>
@@ -136,6 +157,22 @@ impl GenericClient for Client {
         self.query_typed(statement, params)
     }
 
+    fn query_typed_one(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.query_typed_one(query, params)
+    }
+
+    fn query_typed_opt(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        self.query_typed_opt(query, params)
+    }
+
     fn query_typed_raw<P, I>(&mut self, statement: &str, params: I) -> Result<RowIter<'_>, Error>
     where
         P: BorrowToSql,
@@ -176,6 +213,14 @@ impl GenericClient for Client {
 
     fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         self.transaction()
+    }
+
+    fn execute_typed(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error> {
+        self.execute_typed(query, params)
     }
 }
 
@@ -272,5 +317,29 @@ impl GenericClient for Transaction<'_> {
 
     fn transaction(&mut self) -> Result<Transaction<'_>, Error> {
         self.transaction()
+    }
+
+    fn query_typed_one(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.query_typed_one(query, params)
+    }
+
+    fn query_typed_opt(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        self.query_typed_opt(query, params)
+    }
+
+    fn execute_typed(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error> {
+        self.execute_typed(query, params)
     }
 }
