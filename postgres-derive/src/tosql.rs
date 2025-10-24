@@ -117,7 +117,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                       _type: &postgres_types::Type,
                       buf: &mut postgres_types::private::BytesMut)
                       -> std::result::Result<postgres_types::IsNull,
-                                             std::boxed::Box<std::error::Error +
+                                             std::boxed::Box<dyn std::error::Error +
                                                              std::marker::Sync +
                                                              std::marker::Send>> {
                 #to_sql_body
@@ -196,7 +196,7 @@ fn composite_body(fields: &[Field]) -> TokenStream {
                 postgres_types::IsNull::Yes => -1,
                 postgres_types::IsNull::No => {
                     let len = buf.len() - base - 4;
-                    if len > i32::max_value() as usize {
+                    if len > i32::MAX as usize {
                         return std::result::Result::Err(
                             std::convert::Into::into("value too large to transmit"));
                     }

@@ -70,7 +70,7 @@ pub(crate) fn scram_sha_256_salt(password: &[u8], salt: [u8; SCRAM_DEFAULT_SALT_
 
     // stored key
     let mut hash = Sha256::default();
-    hash.update(client_key.as_slice());
+    hash.update(client_key);
     let stored_key = hash.finalize_fixed();
 
     // server key
@@ -102,5 +102,5 @@ pub fn md5(password: &[u8], username: &str) -> String {
     let mut hash = Md5::new();
     hash.update(&salted_password);
     let digest = hash.finalize();
-    format!("md5{:x}", digest)
+    format!("md5{digest:x}")
 }

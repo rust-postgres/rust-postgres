@@ -1,6 +1,27 @@
 # Change Log
 
-## Unreleased
+## v0.19.12 - 2025-10-08
+
+### Added
+
+* Added `Client::check_connection` API.
+
+### Changed
+
+* Improved the effectiveness of `Client::is_closed`.
+* Disabled default features of `futures-util`.
+
+## v0.19.11 - 2025-09-25
+
+### Added
+
+* Added support for `jiff` v0.2.
+* Added support for `bit-vec` versions v0.7 and v0.8.
+
+### Changed
+
+* Updated repository links to use `rust-postgres` organization.
+* Upgraded to Rust 2021 edition.
 
 ## v0.19.10 - 2025-02-02
 
@@ -283,4 +304,4 @@
 
 Look at the [release tags] for information about older releases.
 
-[release tags]: https://github.com/sfackler/rust-postgres/releases
+[release tags]: https://github.com/rust-postgres/rust-postgres/releases

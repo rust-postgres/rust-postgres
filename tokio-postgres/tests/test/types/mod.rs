@@ -15,6 +15,10 @@ use bytes::BytesMut;
 
 #[cfg(feature = "with-bit-vec-0_6")]
 mod bit_vec_06;
+#[cfg(feature = "with-bit-vec-0_7")]
+mod bit_vec_07;
+#[cfg(feature = "with-bit-vec-0_8")]
+mod bit_vec_08;
 #[cfg(feature = "with-chrono-0_4")]
 mod chrono_04;
 #[cfg(feature = "with-eui48-1")]
@@ -49,14 +53,14 @@ where
 
     for (val, repr) in checks {
         let rows = client
-            .query(&*format!("SELECT {}::{}", repr, sql_type), &[])
+            .query(&*format!("SELECT {repr}::{sql_type}"), &[])
             .await
             .unwrap();
         let result = rows[0].get(0);
         assert_eq!(val, &result);
 
         let rows = client
-            .query(&*format!("SELECT $1::{}", sql_type), &[&val])
+            .query(&*format!("SELECT $1::{sql_type}"), &[&val])
             .await
             .unwrap();
         let result = rows[0].get(0);
@@ -391,7 +395,7 @@ where
     let client = connect("user=postgres").await;
 
     let stmt = client
-        .prepare(&format!("SELECT 'NaN'::{}", sql_type))
+        .prepare(&format!("SELECT 'NaN'::{sql_type}"))
         .await
         .unwrap();
     let rows = client.query(&stmt, &[]).await.unwrap();

@@ -5,15 +5,14 @@ use crate::query::extract_row_affected;
 use crate::{Error, SimpleQueryMessage, SimpleQueryRow};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
-use futures_util::{ready, Stream};
+use futures_util::Stream;
 use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
-use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 /// Information about a column of a single query row.
 #[derive(Debug)]
@@ -33,7 +32,7 @@ impl SimpleColumn {
 }
 
 pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQueryStream, Error> {
-    debug!("executing simple query: {}", query);
+    debug!("executing simple query: {query}");
 
     let buf = encode(client, query)?;
     let responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
@@ -41,12 +40,11 @@ pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQue
     Ok(SimpleQueryStream {
         responses,
         columns: None,
-        _p: PhantomPinned,
     })
 }
 
 pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Error> {
-    debug!("executing statement batch: {}", query);
+    debug!("executing statement batch: {query}");
 
     let buf = encode(client, query)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
@@ -72,11 +70,10 @@ fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
 
 pin_project! {
     /// A stream of simple query results.
+    #[project(!Unpin)]
     pub struct SimpleQueryStream {
         responses: Responses,
         columns: Option<Arc<[SimpleColumn]>>,
-        #[pin]
-        _p: PhantomPinned,
     }
 }
 

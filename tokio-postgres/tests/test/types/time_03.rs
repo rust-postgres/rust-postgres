@@ -161,15 +161,12 @@ async fn test_special_params_without_wrapper() {
         T: FromSqlOwned + fmt::Debug,
     {
         let err = client
-            .query_one(&*format!("SELECT {}::{}", val, sql_type), &[])
+            .query_one(&*format!("SELECT {val}::{sql_type}"), &[])
             .await
             .unwrap()
             .try_get::<_, T>(0)
             .unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "error deserializing column 0: value too large to decode"
-        );
+        assert_eq!(err.to_string(), "error deserializing column 0");
     }
 
     let mut client = crate::connect("user=postgres").await;

@@ -7,7 +7,7 @@ use crate::{Client, Connection, Error};
 use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
-use futures_util::{ready, Sink, SinkExt, Stream, TryStreamExt};
+use futures_util::{Sink, SinkExt, Stream, TryStreamExt};
 use postgres_protocol::authentication;
 use postgres_protocol::authentication::sasl;
 use postgres_protocol::authentication::sasl::ScramSha256;
@@ -17,7 +17,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 

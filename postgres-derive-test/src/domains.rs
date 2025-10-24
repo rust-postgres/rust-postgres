@@ -119,3 +119,36 @@ fn domain_in_composite() {
         )],
     );
 }
+
+#[test]
+fn composite_in_domain_in_composite() {
+    #[derive(FromSql, ToSql, Debug, PartialEq)]
+    #[postgres(name = "leaf_composite")]
+    struct LeafComposite {
+        prim: i32,
+    }
+
+    #[derive(FromSql, ToSql, Debug, PartialEq)]
+    #[postgres(name = "domain")]
+    struct Domain(LeafComposite);
+
+    #[derive(FromSql, ToSql, Debug, PartialEq)]
+    #[postgres(name = "root_composite")]
+    struct RootComposite {
+        domain: Domain,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.batch_execute("CREATE TYPE leaf_composite AS (prim integer); CREATE DOMAIN domain AS leaf_composite; CREATE TYPE root_composite AS (domain domain);").unwrap();
+
+    test_type(
+        &mut conn,
+        "root_composite",
+        &[(
+            RootComposite {
+                domain: Domain(LeafComposite { prim: 1 }),
+            },
+            "ROW(ROW(1))",
+        )],
+    );
+}

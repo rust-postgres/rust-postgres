@@ -2,7 +2,7 @@
 name = "postgres-derive-test"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dev-dependencies]
 trybuild = "1.0"
