@@ -368,6 +368,11 @@ impl Type {
     pub fn name(&self) -> &str {
         self.0.name()
     }
+
+    /// Returns the inner value of this type.
+    pub fn inner(&self) -> &Inner {
+        &self.0
+    }
 }
 
 /// Represents the kind of a Postgres type.
