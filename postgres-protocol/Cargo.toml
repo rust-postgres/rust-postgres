@@ -14,12 +14,12 @@ js = ["getrandom/wasm_js"]
 
 [dependencies]
 base64 = "0.22"
-byteorder = "1.0"
-bytes = "1.0"
-fallible-iterator = "0.2"
+byteorder = "1.5"
+bytes = "1.10"
+fallible-iterator = "0.3"
 hmac = "0.12"
 md-5 = "0.10"
-memchr = "2.0"
+memchr = "2.7"
 rand = "0.9"
 sha2 = "0.10"
 stringprep = "0.1"

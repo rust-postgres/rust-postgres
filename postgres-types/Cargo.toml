@@ -33,21 +33,21 @@ with-time-0_2 = ["time-02"]
 with-time-0_3 = ["time-03"]
 
 [dependencies]
-bytes = "1.0"
-fallible-iterator = "0.2"
+bytes = "1.10"
+fallible-iterator = "0.3"
 postgres-protocol = { version = "0.6.8", path = "../postgres-protocol" }
 postgres-derive = { version = "0.4.6", optional = true, path = "../postgres-derive" }
 
 chrono-tz-010 = { version = "0.10", package = "chrono-tz", optional = true }
 array-init = { version = "2", optional = true }
 bit-vec-06 = { version = "0.6", package = "bit-vec", optional = true }
-chrono-04 = { version = "0.4.16", package = "chrono", default-features = false, features = ["clock"], optional = true }
+chrono-04 = { version = "0.4.42", package = "chrono", default-features = false, features = ["clock"], optional = true }
 cidr-02 = { version = "0.2", package = "cidr", optional = true }
 cidr-03 = { version = "0.3", package = "cidr", optional = true }
 # eui48-04 will stop compiling and support will be removed
 # See https://github.com/sfackler/rust-postgres/issues/1073
 eui48-04 = { version = "0.4", package = "eui48", optional = true }
-eui48-1 = { version = "1.0", package = "eui48", optional = true, default-features = false }
+eui48-1 = { version = "1.1", package = "eui48", optional = true, default-features = false }
 geo-types-06 = { version = "0.6", package = "geo-types", optional = true }
 geo-types-0_7 = { version = "0.7", package = "geo-types", optional = true }
 jiff-01 = { version = "0.1", package = "jiff", optional = true }
@@ -55,7 +55,7 @@ jiff-02 = { version = "0.2", package = "jiff", optional = true }
 serde-1 = { version = "1.0", package = "serde", optional = true }
 serde_json-1 = { version = "1.0", package = "serde_json", optional = true, features = ["raw_value"]}
 uuid-08 = { version = "0.8", package = "uuid", optional = true }
-uuid-1 = { version = "1.0", package = "uuid", optional = true }
+uuid-1 = { version = "1.18", package = "uuid", optional = true }
 time-02 = { version = "0.2", package = "time", optional = true }
 time-03 = { version = "0.3", package = "time", default-features = false, optional = true }
-smol_str-01 = { version = "0.1.23", package = "smol_str", default-features = false, optional = true }
+smol_str-01 = { version = "0.1.24", package = "smol_str", default-features = false, optional = true }

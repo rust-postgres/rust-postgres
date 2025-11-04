@@ -43,12 +43,12 @@ with-time-0_2 = ["tokio-postgres/with-time-0_2"]
 with-time-0_3 = ["tokio-postgres/with-time-0_3"]
 
 [dependencies]
-bytes = "1.0"
-fallible-iterator = "0.2"
-futures-util = { version = "0.3.14", features = ["sink"] }
+bytes = "1.10"
+fallible-iterator = "0.3"
+futures-util = { version = "0.3.31", features = ["sink"] }
 tracing = "0.1"
 tokio-postgres = { version = "0.7.13", path = "../tokio-postgres" }
-tokio = { version = "1.0", features = ["rt", "time"] }
+tokio = { version = "1.48", features = ["rt", "time"] }
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.7"

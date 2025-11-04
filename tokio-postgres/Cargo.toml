@@ -54,34 +54,34 @@ js = ["postgres-protocol/js", "postgres-types/js"]
 
 [dependencies]
 async-trait = "0.1"
-bytes = "1.0"
-byteorder = "1.0"
-fallible-iterator = "0.2"
+bytes = "1.10"
+byteorder = "1.5"
+fallible-iterator = "0.3"
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-util = { version = "0.3", features = ["sink"] }
 log = { version = "0.4", optional = true }
 parking_lot = "0.12"
-percent-encoding = "2.0"
+percent-encoding = "2.3"
 pin-project-lite = "0.2"
-phf = "0.11"
+phf = "0.13"
 postgres-protocol = { version = "0.6.8", path = "../postgres-protocol" }
 postgres-types = { version = "0.2.9", path = "../postgres-types" }
-tokio = { version = "1.27", features = ["io-util"] }
+tokio = { version = "1.48", features = ["io-util"] }
 tokio-postgres-derive = { version = "0.0.0", optional = true, path = "../tokio-postgres-derive" }
 tokio-util = { version = "0.7", features = ["codec"] }
 tracing = { version = "0.1", optional = true }
-tracing-error = { version = "0.2.0", optional = true }
-rand = "0.9.0"
-whoami = "1.4.1"
+tracing-error = { version = "0.2.1", optional = true }
+rand = "0.9.2"
+whoami = "1.6.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-socket2 = { version = "0.5", features = ["all"] }
+socket2 = { version = "0.6", features = ["all"] }
 
 [dev-dependencies]
 futures-executor = "0.3"
-criterion = "0.5"
+criterion = "0.7"
 env_logger = "0.11"
-tokio = { version = "1.0", features = [
+tokio = { version = "1.48", features = [
     "macros",
     "net",
     "rt",
@@ -92,7 +92,7 @@ tokio = { version = "1.0", features = [
 bit-vec-06 = { version = "0.6", package = "bit-vec" }
 chrono-04 = { version = "0.4", package = "chrono", default-features = false }
 chrono-tz-010 = { version = "0.10", package = "chrono-tz" }
-eui48-1 = { version = "1.0", package = "eui48", default-features = false }
+eui48-1 = { version = "1.1", package = "eui48", default-features = false }
 geo-types-06 = { version = "0.6", package = "geo-types" }
 geo-types-07 = { version = "0.7", package = "geo-types" }
 jiff-01 = { version = "0.1", package = "jiff" }
@@ -101,6 +101,6 @@ serde-1 = { version = "1.0", package = "serde" }
 serde_json-1 = { version = "1.0", package = "serde_json" }
 smol_str-01 = { version = "0.1", package = "smol_str" }
 uuid-08 = { version = "0.8", package = "uuid" }
-uuid-1 = { version = "1.0", package = "uuid" }
+uuid-1 = { version = "1.18", package = "uuid" }
 time-02 = { version = "0.2", package = "time" }
 time-03 = { version = "0.3", package = "time", features = ["parsing"] }
