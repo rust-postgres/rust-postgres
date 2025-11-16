@@ -656,6 +656,16 @@ impl<'a, T: FromSql<'a>, const N: usize> FromSql<'a> for [T; N] {
     }
 }
 
+impl<'a, T: FromSql<'a>> FromSql<'a> for Box<T> {
+    fn from_sql(ty: &Type, row: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        T::from_sql(ty, row).map(Box::new)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        T::accepts(ty)
+    }
+}
+
 impl<'a, T: FromSql<'a>> FromSql<'a> for Box<[T]> {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Vec::<T>::from_sql(ty, raw).map(Vec::into_boxed_slice)
@@ -1060,6 +1070,18 @@ impl<T: ToSql> ToSql for Vec<T> {
 
     fn accepts(ty: &Type) -> bool {
         <&[T] as ToSql>::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
+impl<T: ToSql> ToSql for Box<T> {
+    fn to_sql(&self, ty: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        <&T as ToSql>::to_sql(&&**self, ty, w)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&T as ToSql>::accepts(ty)
     }
 
     to_sql_checked!();
