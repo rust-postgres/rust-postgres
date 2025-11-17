@@ -92,10 +92,10 @@ pub struct Numeric {
 }
 
 impl Numeric {
-    /// Returns the number of digits.
+    /// Returns the digits.
     #[inline]
-    pub fn num_digits(&self) -> usize {
-        self.digits.len()
+    pub fn digits(&self) -> &Vec<i16> {
+        &self.digits
     }
 
     /// Returns the weight of the numeric value.
@@ -163,7 +163,7 @@ impl FromStr for Numeric {
     type Err = ParseError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if let Some(special) = parse_special_values(value)? {
+        if let Some(special) = parse_special_values(value) {
             return Ok(special);
         }
 
@@ -391,17 +391,16 @@ impl<'a> ParsedComponents<'a> {
     }
 }
 
-fn parse_special_values(s: &str) -> Result<Option<Numeric>, ParseError> {
+fn parse_special_values(s: &str) -> Option<Numeric> {
     if s.eq_ignore_ascii_case("NaN") {
-        return Ok(Some(Numeric::nan()));
+        Some(Numeric::nan())
+    } else if s.eq_ignore_ascii_case("Infinity") || s.eq_ignore_ascii_case("Inf") {
+        Some(Numeric::infinity())
+    } else if s.eq_ignore_ascii_case("-Infinity") || s.eq_ignore_ascii_case("-Inf") {
+        Some(Numeric::negative_infinity())
+    } else {
+        None
     }
-    if s.eq_ignore_ascii_case("Infinity") || s.eq_ignore_ascii_case("Inf") {
-        return Ok(Some(Numeric::infinity()));
-    }
-    if s.eq_ignore_ascii_case("-Infinity") || s.eq_ignore_ascii_case("-Inf") {
-        return Ok(Some(Numeric::negative_infinity()));
-    }
-    Ok(None)
 }
 
 fn parse_scientific_component(s: &[u8]) -> Result<(&[u8], Option<i32>), ParseError> {
@@ -430,8 +429,7 @@ fn parse_scientific_component(s: &[u8]) -> Result<(&[u8], Option<i32>), ParseErr
             if !b.is_ascii_digit() {
                 return Err("scientific notation string contain non-digit character".into());
             }
-            // Prevent integer overflow in exponent
-            exp = exp.saturating_mul(10).saturating_add((b - b'0') as i32);
+            exp = exp * 10 + (b - b'0') as i32;
             if exp > 1000000 {
                 // Reasonable limit for exponents
                 return Err("scientific notation exponent too large".into());
@@ -661,15 +659,9 @@ fn normalize_leading_zeros(digits: &mut Vec<i16>, weight: &mut i16) {
     let leading_zero_count = digits.iter().take_while(|&&d| d == 0).count();
 
     if leading_zero_count > 0 {
-        if leading_zero_count == digits.len() {
-            // All digits are zero
-            *weight = 0;
-            digits.clear();
-        } else {
-            // Remove leading zeros
-            digits.drain(0..leading_zero_count);
-            *weight -= leading_zero_count as i16;
-        }
+        // Remove leading zeros
+        digits.drain(0..leading_zero_count);
+        *weight -= leading_zero_count as i16;
     }
 }
 
