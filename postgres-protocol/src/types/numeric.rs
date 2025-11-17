@@ -1570,7 +1570,7 @@ mod test {
             let prop_val = value.to_string();
             let numeric = Numeric::from_str(&prop_val).expect("parse numeric");
             let str_val = numeric.to_string();
-            assert_eq!(prop_val, str_val, "proprty test value {value}");
+            assert_eq!(prop_val, str_val, "property test value {value}");
         }
         #[test]
         fn test_arbitrary_i64_from_string_and_back(value in any::<i64>()) {
