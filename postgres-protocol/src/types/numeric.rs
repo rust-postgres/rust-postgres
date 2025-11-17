@@ -82,7 +82,7 @@ impl NumericSign {
     }
 }
 
-/// A Posgres numeric
+/// Postgres `NUMERIC` type.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Numeric {
     sign: NumericSign,
