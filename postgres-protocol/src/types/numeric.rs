@@ -83,7 +83,7 @@ impl NumericSign {
 }
 
 /// Postgres `NUMERIC` type.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Numeric {
     sign: NumericSign,
     scale: u16,
