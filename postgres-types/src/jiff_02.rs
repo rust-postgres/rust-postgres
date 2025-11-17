@@ -51,7 +51,9 @@ impl<'a> FromSql<'a> for DateTime {
 
 impl ToSql for DateTime {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        let v = dbg!(dbg!(self.since(base())).and_then(|s| s.round(round_us().relative(base()))))
+        let v = self
+            .since(base())
+            .and_then(|s| s.round(round_us().relative(base())))
             .map_err(transmit_err)?
             .get_microseconds();
         types::timestamp_to_sql(v, w);

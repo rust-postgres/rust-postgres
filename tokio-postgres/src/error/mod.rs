@@ -312,10 +312,10 @@ impl fmt::Display for DbError {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{}: {}", self.severity, self.message)?;
         if let Some(detail) = &self.detail {
-            write!(fmt, "\nDETAIL: {}", detail)?;
+            write!(fmt, "\nDETAIL: {detail}")?;
         }
         if let Some(hint) = &self.hint {
-            write!(fmt, "\nHINT: {}", hint)?;
+            write!(fmt, "\nHINT: {hint}")?;
         }
         Ok(())
     }
@@ -379,31 +379,27 @@ impl fmt::Debug for Error {
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0.kind {
-            Kind::Io => fmt.write_str("error communicating with the server")?,
-            Kind::UnexpectedMessage => fmt.write_str("unexpected message from server")?,
-            Kind::Tls => fmt.write_str("error performing TLS handshake")?,
-            Kind::ToSql(idx) => write!(fmt, "error serializing parameter {}", idx)?,
-            Kind::FromSql(idx) => write!(fmt, "error deserializing column {}", idx)?,
-            Kind::Column(column) => write!(fmt, "invalid column `{}`", column)?,
+            Kind::Io => fmt.write_str("error communicating with the server"),
+            Kind::UnexpectedMessage => fmt.write_str("unexpected message from server"),
+            Kind::Tls => fmt.write_str("error performing TLS handshake"),
+            Kind::ToSql(idx) => write!(fmt, "error serializing parameter {idx}"),
+            Kind::FromSql(idx) => write!(fmt, "error deserializing column {idx}"),
+            Kind::Column(column) => write!(fmt, "invalid column `{column}`"),
             Kind::Parameters(real, expected) => {
-                write!(fmt, "expected {expected} parameters but got {real}")?
+                write!(fmt, "expected {expected} parameters but got {real}")
             }
-            Kind::Closed => fmt.write_str("connection closed")?,
-            Kind::Db => fmt.write_str("db error")?,
-            Kind::Parse => fmt.write_str("error parsing response from server")?,
-            Kind::Encode => fmt.write_str("error encoding message to server")?,
-            Kind::Authentication => fmt.write_str("authentication error")?,
-            Kind::ConfigParse => fmt.write_str("invalid connection string")?,
-            Kind::Config => fmt.write_str("invalid configuration")?,
-            Kind::RowCount => fmt.write_str("query returned an unexpected number of rows")?,
+            Kind::Closed => fmt.write_str("connection closed"),
+            Kind::Db => fmt.write_str("db error"),
+            Kind::Parse => fmt.write_str("error parsing response from server"),
+            Kind::Encode => fmt.write_str("error encoding message to server"),
+            Kind::Authentication => fmt.write_str("authentication error"),
+            Kind::ConfigParse => fmt.write_str("invalid connection string"),
+            Kind::Config => fmt.write_str("invalid configuration"),
+            Kind::RowCount => fmt.write_str("query returned an unexpected number of rows"),
             #[cfg(feature = "runtime")]
-            Kind::Connect => fmt.write_str("error connecting to server")?,
-            Kind::Timeout => fmt.write_str("timeout waiting for server")?,
-        };
-        if let Some(ref cause) = self.0.cause {
-            write!(fmt, ": {}", cause)?;
+            Kind::Connect => fmt.write_str("error connecting to server"),
+            Kind::Timeout => fmt.write_str("timeout waiting for server"),
         }
-        Ok(())
     }
 }
 

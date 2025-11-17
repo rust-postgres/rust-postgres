@@ -53,7 +53,6 @@ impl Write for CopyInWriter<'_> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.flush_inner()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        self.flush_inner().map_err(io::Error::other)
     }
 }

@@ -52,7 +52,7 @@ impl fmt::Display for PgLsn {
 
 impl fmt::Debug for PgLsn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("{}", self))
+        fmt::Display::fmt(self, f)
     }
 }
 
