@@ -181,6 +181,16 @@
 //!    Meh,
 //! }
 //! ```
+//! 
+//! # Features
+//! 
+//! These are the features specific to postgres-types you can enable in 'Cargo.toml':
+//! 
+//! | Feature | Description | Extra dependencies | Default |
+//! | ------- | ----------- | ------------------ | ------- |
+//! | `derive` | Macros to add ToSql and FromSql for custom types | [postgres-derive](https://crates.io/crates/postgres-derive) 0.4  | no |
+//! 
+#![doc = include_str!("../feature_docs.md")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types::{self, ArrayDimension};
