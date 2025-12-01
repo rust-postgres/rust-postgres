@@ -831,6 +831,12 @@ impl<'a> FallibleIterator for Fields<'a> {
             format,
         }))
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.remaining as usize;
+        (len, Some(len))
+    }
 }
 
 pub struct Field<'a> {
