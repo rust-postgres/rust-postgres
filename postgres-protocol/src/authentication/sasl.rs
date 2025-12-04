@@ -57,6 +57,7 @@ pub(crate) fn hi(str: &[u8], salt: &[u8], i: u32) -> [u8; 32] {
     hi.into()
 }
 
+#[derive(Debug)]
 enum ChannelBindingInner {
     Unrequested,
     Unsupported,
@@ -64,6 +65,7 @@ enum ChannelBindingInner {
 }
 
 /// The channel binding configuration for a SCRAM authentication exchange.
+#[derive(Debug)]
 pub struct ChannelBinding(ChannelBindingInner);
 
 impl ChannelBinding {
@@ -99,6 +101,7 @@ impl ChannelBinding {
     }
 }
 
+#[derive(Debug)]
 enum State {
     Update {
         nonce: String,
@@ -127,6 +130,7 @@ enum State {
 ///
 /// The server will reply with an `AuthenticationSASLFinal` message. Its contents should be passed
 /// to the `finish()` method, after which the authentication process is complete.
+#[derive(Debug)]
 pub struct ScramSha256 {
     message: String,
     state: State,

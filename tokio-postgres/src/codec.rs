@@ -1,15 +1,18 @@
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend;
-use postgres_protocol::message::frontend::CopyData;
+use postgres_protocol::message::frontend::{CopyData};
+use postgres_protocol::types::debug_bytes::Buf;
 use std::io;
 use tokio_util::codec::{Decoder, Encoder};
 
+#[derive(Debug)]
 pub enum FrontendMessage {
     Raw(Bytes),
     CopyData(CopyData<Box<dyn Buf + Send>>),
 }
 
+#[derive(Debug)]
 pub enum BackendMessage {
     Normal {
         messages: BackendMessages,
@@ -18,6 +21,7 @@ pub enum BackendMessage {
     Async(backend::Message),
 }
 
+#[derive(Debug)]
 pub struct BackendMessages(BytesMut);
 
 impl BackendMessages {
@@ -35,6 +39,7 @@ impl FallibleIterator for BackendMessages {
     }
 }
 
+#[derive(Debug)]
 pub struct PostgresCodec;
 
 impl Encoder<FrontendMessage> for PostgresCodec {

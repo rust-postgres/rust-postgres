@@ -1,14 +1,17 @@
 //! Conversions to and from Postgres's binary format for various types.
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
-use bytes::{BufMut, BytesMut};
 use fallible_iterator::FallibleIterator;
 use std::boxed::Box as StdBox;
 use std::error::Error;
 use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str;
+use bytes::{BytesMut, BufMut};
 
 use crate::{write_nullable, FromUsize, IsNull, Lsn, Oid};
+
+/// Handle Debug versions of traits in bytes's crate
+pub mod debug_bytes;
 
 #[cfg(test)]
 mod test;
@@ -246,6 +249,7 @@ pub fn hstore_from_sql(
 }
 
 /// A fallible iterator over `HSTORE` entries.
+#[derive(Debug)]
 pub struct HstoreEntries<'a> {
     remaining: i32,
     buf: &'a [u8],
@@ -336,6 +340,7 @@ pub fn varbit_from_sql(mut buf: &[u8]) -> Result<Varbit<'_>, StdBox<dyn Error + 
 }
 
 /// A `VARBIT` value.
+#[derive(Debug)]
 pub struct Varbit<'a> {
     len: usize,
     bytes: &'a [u8],
@@ -542,6 +547,7 @@ pub fn array_from_sql(mut buf: &[u8]) -> Result<Array<'_>, StdBox<dyn Error + Sy
 }
 
 /// A Postgres array.
+#[derive(Debug)]
 pub struct Array<'a> {
     dimensions: i32,
     has_nulls: bool,
@@ -580,6 +586,7 @@ impl<'a> Array<'a> {
 }
 
 /// An iterator over the dimensions of an array.
+#[derive(Debug)]
 pub struct ArrayDimensions<'a>(&'a [u8]);
 
 impl FallibleIterator for ArrayDimensions<'_> {
@@ -616,6 +623,7 @@ pub struct ArrayDimension {
 }
 
 /// An iterator over the values of an array, in row-major order.
+#[derive(Debug)]
 pub struct ArrayValues<'a> {
     remaining: i32,
     buf: &'a [u8],
@@ -724,6 +732,7 @@ where
 }
 
 /// One side of a range.
+#[derive(Debug)]
 pub enum RangeBound<T> {
     /// An inclusive bound.
     Inclusive(T),
@@ -784,6 +793,7 @@ fn read_bound<'a>(
 }
 
 /// A Postgres range.
+#[derive(Debug)]
 pub enum Range<'a> {
     /// An empty range.
     Empty,
@@ -810,7 +820,7 @@ pub fn point_from_sql(mut buf: &[u8]) -> Result<Point, StdBox<dyn Error + Sync +
 }
 
 /// A Postgres point.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Point {
     x: f64,
     y: f64,
@@ -856,7 +866,7 @@ pub fn box_from_sql(mut buf: &[u8]) -> Result<Box, StdBox<dyn Error + Sync + Sen
 }
 
 /// A Postgres box.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Box {
     upper_right: Point,
     lower_left: Point,
@@ -917,6 +927,7 @@ pub fn path_from_sql(mut buf: &[u8]) -> Result<Path<'_>, StdBox<dyn Error + Sync
 }
 
 /// A Postgres point.
+#[derive(Debug)]
 pub struct Path<'a> {
     closed: bool,
     points: i32,
@@ -941,6 +952,7 @@ impl<'a> Path<'a> {
 }
 
 /// An iterator over the points of a Postgres path.
+#[derive(Debug)]
 pub struct PathPoints<'a> {
     remaining: i32,
     buf: &'a [u8],
@@ -1037,6 +1049,7 @@ pub fn inet_from_sql(mut buf: &[u8]) -> Result<Inet, StdBox<dyn Error + Sync + S
 }
 
 /// A Postgres network address.
+#[derive(Debug)]
 pub struct Inet {
     addr: IpAddr,
     netmask: u8,

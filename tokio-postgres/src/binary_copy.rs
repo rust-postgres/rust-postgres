@@ -3,10 +3,11 @@
 use crate::types::{FromSql, IsNull, ToSql, Type, WrongType};
 use crate::{slice_iter, CopyInSink, CopyOutStream, Error};
 use byteorder::{BigEndian, ByteOrder};
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 use futures_util::{SinkExt, Stream};
 use pin_project_lite::pin_project;
 use postgres_types::BorrowToSql;
+use bytes::{Buf as _Buf, BufMut as _BufMut};
 use std::io;
 use std::io::Cursor;
 use std::ops::Range;
@@ -21,6 +22,7 @@ pin_project! {
     /// A type which serializes rows into the PostgreSQL binary copy format.
     ///
     /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
+    #[derive(Debug)]
     pub struct BinaryCopyInWriter {
         #[pin]
         sink: CopyInSink<Bytes>,
@@ -110,12 +112,14 @@ impl BinaryCopyInWriter {
     }
 }
 
+#[derive(Debug)]
 struct Header {
     has_oids: bool,
 }
 
 pin_project! {
     /// A stream of rows deserialized from the PostgreSQL binary copy format.
+    #[derive(Debug)]
     pub struct BinaryCopyOutStream {
         #[pin]
         stream: CopyOutStream,
@@ -223,6 +227,7 @@ fn check_remaining(buf: &Cursor<Bytes>, len: usize) -> Result<(), Error> {
 }
 
 /// A row of data parsed from a binary copy out stream.
+#[derive(Debug)]
 pub struct BinaryCopyOutRow {
     buf: Bytes,
     ranges: Vec<Option<Range<usize>>>,

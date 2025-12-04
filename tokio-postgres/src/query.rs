@@ -281,6 +281,7 @@ where
 pin_project! {
     /// A stream of table rows.
     #[project(!Unpin)]
+    #[derive(Debug)]
     pub struct RowStream {
         statement: Statement,
         responses: Responses,

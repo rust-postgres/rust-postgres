@@ -10,6 +10,7 @@
 //! This library assumes that the `client_encoding` backend parameter has been
 //! set to `UTF8`. It will most likely not behave properly if that is not the case.
 #![warn(missing_docs, rust_2018_idioms, clippy::all)]
+#![deny(missing_debug_implementations)]
 
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
@@ -28,6 +29,7 @@ pub type Oid = u32;
 pub type Lsn = u64;
 
 /// An enum indicating if a value is `NULL` or not.
+#[derive(Debug)]
 pub enum IsNull {
     /// The value is `NULL`.
     Yes,

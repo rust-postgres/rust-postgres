@@ -6,6 +6,7 @@ mod private {
 
     pub trait Sealed {}
 
+    #[derive(Debug)]
     pub enum ToStatementType<'a> {
         Statement(&'a Statement),
         Query(&'a str),

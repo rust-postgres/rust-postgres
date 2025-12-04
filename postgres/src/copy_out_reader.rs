@@ -6,6 +6,7 @@ use std::io::{self, BufRead, Read};
 use tokio_postgres::CopyOutStream;
 
 /// The reader returned by the `copy_out` method.
+#[derive(Debug)]
 pub struct CopyOutReader<'a> {
     pub(crate) connection: ConnectionRef<'a>,
     pub(crate) stream: LazyPin<CopyOutStream>,

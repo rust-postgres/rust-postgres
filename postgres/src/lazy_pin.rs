@@ -1,5 +1,6 @@
 use std::pin::Pin;
 
+#[derive(Debug)]
 pub(crate) struct LazyPin<T> {
     value: Box<T>,
     pinned: bool,

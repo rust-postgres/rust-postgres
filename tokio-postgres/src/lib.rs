@@ -122,6 +122,7 @@
 //! | `with-time-0_2` | Enable support for the 0.2 version of the `time` crate. | [time](https://crates.io/crates/time/0.2.0) 0.2 | no |
 //! | `with-time-0_3` | Enable support for the 0.3 version of the `time` crate. | [time](https://crates.io/crates/time/0.3.0) 0.3 | no |
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
+#![deny(missing_debug_implementations)]
 
 pub use crate::cancel_token::CancelToken;
 pub use crate::client::Client;

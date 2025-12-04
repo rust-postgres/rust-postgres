@@ -3,6 +3,7 @@ use crate::{
     CancelToken, Config, CopyInWriter, CopyOutReader, Notifications, RowIter, Statement,
     ToStatement, Transaction, TransactionBuilder,
 };
+use std::fmt::Debug;
 use std::task::Poll;
 use std::time::Duration;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
@@ -10,6 +11,7 @@ use tokio_postgres::types::{BorrowToSql, ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage, Socket};
 
 /// A synchronous PostgreSQL client.
+#[derive(Debug)]
 pub struct Client {
     connection: Connection,
     client: tokio_postgres::Client,
@@ -35,7 +37,7 @@ impl Client {
     where
         T: MakeTlsConnect<Socket> + 'static + Send,
         T::TlsConnect: Send,
-        T::Stream: Send,
+        T::Stream: Send + Debug,
         <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
         params.parse::<Config>()?.connect(tls_mode)

@@ -5,6 +5,7 @@ use crate::Statement;
 use postgres_protocol::message::frontend;
 use std::sync::{Arc, Weak};
 
+#[derive(Debug)]
 struct Inner {
     client: Weak<InnerClient>,
     name: String,
@@ -28,7 +29,7 @@ impl Drop for Inner {
 ///
 /// Portals can only be used with the connection that created them, and only exist for the duration of the transaction
 /// in which they were created.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Portal(Arc<Inner>);
 
 impl Portal {

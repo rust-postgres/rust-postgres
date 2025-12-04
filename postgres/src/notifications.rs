@@ -10,6 +10,7 @@ use std::time::Duration;
 use tokio::time::{self, Instant, Sleep};
 
 /// Notifications from a PostgreSQL backend.
+#[derive(Debug)]
 pub struct Notifications<'a> {
     connection: ConnectionRef<'a>,
 }
@@ -73,6 +74,7 @@ impl<'a> Notifications<'a> {
 }
 
 /// A nonblocking iterator over pending notifications.
+#[derive(Debug)]
 pub struct Iter<'a> {
     connection: ConnectionRef<'a>,
 }
@@ -96,6 +98,7 @@ impl FallibleIterator for Iter<'_> {
 }
 
 /// A blocking iterator over pending notifications.
+#[derive(Debug)]
 pub struct BlockingIter<'a> {
     connection: ConnectionRef<'a>,
 }
@@ -123,6 +126,7 @@ impl FallibleIterator for BlockingIter<'_> {
 }
 
 /// A time-limited blocking iterator over pending notifications.
+#[derive(Debug)]
 pub struct TimeoutIter<'a> {
     connection: ConnectionRef<'a>,
     delay: Pin<Box<Sleep>>,

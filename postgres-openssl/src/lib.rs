@@ -86,6 +86,14 @@ pub struct MakeTlsConnector {
     config: Arc<ConfigCallback>,
 }
 
+impl Debug for MakeTlsConnector {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MakeTlsConnector")
+        .field("connector", &self.connector)
+        .finish()
+    }
+}
+
 #[cfg(feature = "runtime")]
 impl MakeTlsConnector {
     /// Creates a new connector.

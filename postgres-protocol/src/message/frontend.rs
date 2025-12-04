@@ -2,10 +2,12 @@
 #![allow(missing_docs)]
 
 use byteorder::{BigEndian, ByteOrder};
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{BufMut, BytesMut};
 use std::error::Error;
 use std::io;
 use std::marker;
+use std::fmt::Debug;
+use crate::types::debug_bytes::Buf;
 
 use crate::{write_nullable, FromUsize, IsNull, Oid};
 
@@ -25,6 +27,7 @@ where
     Ok(())
 }
 
+#[derive(Debug)]
 pub enum BindError {
     Conversion(Box<dyn Error + marker::Sync + Send>),
     Serialization(io::Error),
@@ -131,6 +134,7 @@ pub fn close(variant: u8, name: &str, buf: &mut BytesMut) -> io::Result<()> {
     })
 }
 
+#[derive(Debug)]
 pub struct CopyData<T> {
     buf: T,
     len: i32,

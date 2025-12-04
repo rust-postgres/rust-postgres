@@ -13,6 +13,7 @@ use tokio_postgres::binary_copy::{self, BinaryCopyOutStream};
 /// A type which serializes rows into the PostgreSQL binary copy format.
 ///
 /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
+#[derive(Debug)]
 pub struct BinaryCopyInWriter<'a> {
     connection: ConnectionRef<'a>,
     sink: Pin<Box<binary_copy::BinaryCopyInWriter>>,
@@ -65,6 +66,7 @@ impl<'a> BinaryCopyInWriter<'a> {
 }
 
 /// An iterator of rows deserialized from the PostgreSQL binary copy format.
+#[derive(Debug)]
 pub struct BinaryCopyOutIter<'a> {
     connection: ConnectionRef<'a>,
     stream: Pin<Box<BinaryCopyOutStream>>,

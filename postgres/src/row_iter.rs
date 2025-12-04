@@ -5,6 +5,7 @@ use std::pin::Pin;
 use tokio_postgres::{Error, Row, RowStream};
 
 /// The iterator returned by `query_raw`.
+#[derive(Debug)]
 pub struct RowIter<'a> {
     connection: ConnectionRef<'a>,
     it: Pin<Box<RowStream>>,

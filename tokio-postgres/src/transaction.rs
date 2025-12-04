@@ -10,14 +10,15 @@ use crate::{
     bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, Portal, Row,
     SimpleQueryMessage, Statement, ToStatement,
 };
-use bytes::Buf;
 use futures_util::TryStreamExt;
 use tokio::io::{AsyncRead, AsyncWrite};
+use postgres_protocol::types::debug_bytes::Buf;
 
 /// A representation of a PostgreSQL database transaction.
 ///
 /// Transactions will implicitly roll back when dropped. Use the `commit` method to commit the changes made in the
 /// transaction. Transactions can be nested, with inner transactions implemented via safepoints.
+#[derive(Debug)]
 pub struct Transaction<'a> {
     client: &'a mut Client,
     savepoint: Option<Savepoint>,
@@ -25,6 +26,7 @@ pub struct Transaction<'a> {
 }
 
 /// A representation of a PostgreSQL database savepoint.
+#[derive(Debug)]
 struct Savepoint {
     name: String,
     depth: u32,

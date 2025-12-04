@@ -9,6 +9,7 @@ use tokio_postgres::{CopyInSink, Error};
 /// The writer returned by the `copy_in` method.
 ///
 /// The copy *must* be explicitly completed via the `finish` method. If it is not, the copy will be aborted.
+#[derive(Debug)]
 pub struct CopyInWriter<'a> {
     pub(crate) connection: ConnectionRef<'a>,
     pub(crate) sink: LazyPin<CopyInSink<Bytes>>,

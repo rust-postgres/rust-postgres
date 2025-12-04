@@ -5,7 +5,7 @@
 use crate::connection::Connection;
 use crate::Client;
 use log::info;
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::net::IpAddr;
 use std::path::Path;
 use std::str::FromStr;
@@ -454,7 +454,7 @@ impl Config {
     where
         T: MakeTlsConnect<Socket> + 'static + Send,
         T::TlsConnect: Send,
-        T::Stream: Send,
+        T::Stream: Send + Debug,
         <T::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
         let runtime = runtime::Builder::new_current_thread()
