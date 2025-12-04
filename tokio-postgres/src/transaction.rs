@@ -11,8 +11,8 @@ use crate::{
     SimpleQueryMessage, Statement, ToStatement,
 };
 use futures_util::TryStreamExt;
-use tokio::io::{AsyncRead, AsyncWrite};
 use postgres_protocol::types::debug_bytes::Buf;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 /// A representation of a PostgreSQL database transaction.
 ///

@@ -1,13 +1,13 @@
 //! Frontend message serialization.
 #![allow(missing_docs)]
 
+use crate::types::debug_bytes::Buf;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use std::error::Error;
+use std::fmt::Debug;
 use std::io;
 use std::marker;
-use std::fmt::Debug;
-use crate::types::debug_bytes::Buf;
 
 use crate::{write_nullable, FromUsize, IsNull, Oid};
 

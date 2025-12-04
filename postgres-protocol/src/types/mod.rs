@@ -1,12 +1,12 @@
 //! Conversions to and from Postgres's binary format for various types.
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
+use bytes::{BufMut, BytesMut};
 use fallible_iterator::FallibleIterator;
 use std::boxed::Box as StdBox;
 use std::error::Error;
 use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str;
-use bytes::{BytesMut, BufMut};
 
 use crate::{write_nullable, FromUsize, IsNull, Lsn, Oid};
 

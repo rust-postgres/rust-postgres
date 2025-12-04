@@ -1,6 +1,7 @@
 use crate::{Error, Notification};
 use futures_util::Stream;
 use std::collections::VecDeque;
+use std::fmt::Debug;
 use std::future::{self, Future};
 use std::ops::{Deref, DerefMut};
 use std::pin::{pin, Pin};
@@ -10,7 +11,6 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::runtime::Runtime;
 use tokio_postgres::error::DbError;
 use tokio_postgres::AsyncMessage;
-use std::fmt::Debug;
 
 pub struct Connection {
     runtime: Runtime,
@@ -25,12 +25,11 @@ impl<T> ItemConnection for T where T: Stream<Item = Result<AsyncMessage, Error>>
 
 impl Debug for Connection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f
-        .debug_struct("Connection")
-        .field("runtime", &self.runtime)
-        .field("connection", &self.connection)
-        .field("notifications", &self.notifications)
-        .finish()
+        f.debug_struct("Connection")
+            .field("runtime", &self.runtime)
+            .field("connection", &self.connection)
+            .field("notifications", &self.notifications)
+            .finish()
     }
 }
 

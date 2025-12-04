@@ -3,11 +3,11 @@
 use crate::types::{FromSql, IsNull, ToSql, Type, WrongType};
 use crate::{slice_iter, CopyInSink, CopyOutStream, Error};
 use byteorder::{BigEndian, ByteOrder};
+use bytes::{Buf as _Buf, BufMut as _BufMut};
 use bytes::{Bytes, BytesMut};
 use futures_util::{SinkExt, Stream};
 use pin_project_lite::pin_project;
 use postgres_types::BorrowToSql;
-use bytes::{Buf as _Buf, BufMut as _BufMut};
 use std::io;
 use std::io::Cursor;
 use std::ops::Range;

@@ -89,8 +89,8 @@ pub struct MakeTlsConnector {
 impl Debug for MakeTlsConnector {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MakeTlsConnector")
-        .field("connector", &self.connector)
-        .finish()
+            .field("connector", &self.connector)
+            .finish()
     }
 }
 
