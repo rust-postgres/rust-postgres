@@ -259,7 +259,7 @@ where
     I: IntoIterator<Item = (&'a str, &'a str)>,
 {
     write_body(buf, |buf| {
-        // postgres protocol version 3.0(196608) in bigger-endian
+        // postgres protocol version 3.0(196608) in big-endian
         buf.put_i32(0x00_03_00_00);
         for (key, value) in parameters {
             write_cstr(key.as_bytes(), buf)?;
