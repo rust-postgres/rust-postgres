@@ -169,6 +169,30 @@ async fn pipelined_prepare() {
 }
 
 #[tokio::test]
+async fn prepare_type_modifier() {
+    let client = connect("user=postgres").await;
+
+    let statement = client
+        .prepare("SELECT $1::BIGINT, $2::VARCHAR(7), $3::VARCHAR(101)")
+        .await
+        .unwrap();
+
+    let varlena_header_length = 4;
+    assert_eq!(statement.columns()[0].type_(), &Type::INT8);
+    assert_eq!(statement.columns()[0].type_modifier(), -1);
+    assert_eq!(statement.columns()[1].type_(), &Type::VARCHAR);
+    assert_eq!(
+        statement.columns()[1].type_modifier(),
+        7 + varlena_header_length
+    );
+    assert_eq!(statement.columns()[2].type_(), &Type::VARCHAR);
+    assert_eq!(
+        statement.columns()[2].type_modifier(),
+        101 + varlena_header_length
+    );
+}
+
+#[tokio::test]
 async fn insert_select() {
     let client = connect("user=postgres").await;
 
