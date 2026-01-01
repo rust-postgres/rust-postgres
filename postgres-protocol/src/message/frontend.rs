@@ -105,8 +105,8 @@ where
         serializer(item, buf)?;
         count += 1;
     }
-    let count = i16::from_usize(count)?;
-    BigEndian::write_i16(&mut buf[base..], count);
+    let count = u16::from_usize(count)?;
+    BigEndian::write_u16(&mut buf[base..], count);
 
     Ok(())
 }
