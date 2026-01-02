@@ -23,7 +23,7 @@ use futures_util::{StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
-use postgres_types::BorrowToSql;
+use postgres_types::{BorrowToSql, FromSqlOwned};
 use std::collections::HashMap;
 use std::fmt;
 use std::future;
@@ -262,6 +262,30 @@ impl Client {
             .await
     }
 
+    /// Returns a vector of scalars.
+    pub async fn query_scalar<R: FromSqlOwned, T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let rows: Vec<Row> = self
+            .query_raw(statement, slice_iter(params))
+            .await?
+            .try_collect()
+            .await?;
+
+        if let Some(row) = rows.first() {
+            if row.len() != 1 {
+                return Err(Error::column_count());
+            }
+        };
+
+        rows.into_iter().map(|r| r.try_get(0)).collect()
+    }
+
     /// Executes a statement which returns a single row, returning it.
     ///
     /// Returns an error if the query does not return exactly one row.
@@ -283,6 +307,24 @@ impl Client {
         self.query_opt(statement, params)
             .await
             .and_then(|res| res.ok_or_else(Error::row_count))
+    }
+
+    /// Like [`Client::query_one`] but returns one scalar.
+    pub async fn query_one_scalar<R: FromSqlOwned, T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<R, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let row = self.query_one(statement, params).await?;
+
+        if row.len() != 1 {
+            return Err(Error::column_count());
+        }
+
+        row.try_get(0)
     }
 
     /// Executes a statements which returns zero or one rows, returning it.
@@ -321,6 +363,26 @@ impl Client {
         }
 
         Ok(first)
+    }
+
+    /// Like [`Client::query_opt`] but returns an optional scalar.
+    pub async fn query_opt_scalar<R: FromSqlOwned, T>(
+        &self,
+        statement: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<R>, Error>
+    where
+        T: ?Sized + ToStatement + fmt::Debug,
+    {
+        let row = self.query_opt(statement, params).await?;
+
+        if let Some(row) = &row {
+            if row.len() != 1 {
+                return Err(Error::column_count());
+            }
+        }
+
+        row.map(|x| x.try_get::<_, R>(0)).transpose()
     }
 
     /// The maximally flexible version of [`query`].
@@ -364,7 +426,7 @@ impl Client {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
-        let statement = statement.__convert().into_statement(self).await?;
+        let statement = statement.__convert().into_statement(&self.inner).await?;
         query::query(&self.inner, statement, params).await
     }
 
@@ -470,7 +532,7 @@ impl Client {
         I: IntoIterator<Item = P>,
         I::IntoIter: ExactSizeIterator,
     {
-        let statement = statement.__convert().into_statement(self).await?;
+        let statement = statement.__convert().into_statement(&self.inner).await?;
         query::execute(self.inner(), statement, params).await
     }
 
@@ -483,7 +545,7 @@ impl Client {
         T: ?Sized + ToStatement,
         U: Buf + 'static + Send,
     {
-        let statement = statement.__convert().into_statement(self).await?;
+        let statement = statement.__convert().into_statement(&self.inner).await?;
         copy_in::copy_in(self.inner(), statement).await
     }
 
@@ -494,7 +556,7 @@ impl Client {
     where
         T: ?Sized + ToStatement,
     {
-        let statement = statement.__convert().into_statement(self).await?;
+        let statement = statement.__convert().into_statement(&self.inner).await?;
         copy_out::copy_out(self.inner(), statement).await
     }
 

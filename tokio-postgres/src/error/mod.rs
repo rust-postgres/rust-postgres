@@ -345,6 +345,7 @@ enum Kind {
     ToSql(usize),
     FromSql(usize),
     Column(String),
+    ColumnCount,
     Parameters(usize, usize),
     Closed,
     Db,
@@ -385,6 +386,7 @@ impl fmt::Display for Error {
             Kind::ToSql(idx) => write!(fmt, "error serializing parameter {idx}"),
             Kind::FromSql(idx) => write!(fmt, "error deserializing column {idx}"),
             Kind::Column(column) => write!(fmt, "invalid column `{column}`"),
+            Kind::ColumnCount => write!(fmt, "query returned an unexpected number of columns"),
             Kind::Parameters(real, expected) => {
                 write!(fmt, "expected {expected} parameters but got {real}")
             }
@@ -473,6 +475,10 @@ impl Error {
 
     pub(crate) fn column(column: String) -> Error {
         Error::new(Kind::Column(column), None)
+    }
+
+    pub(crate) fn column_count() -> Error {
+        Error::new(Kind::ColumnCount, None)
     }
 
     pub(crate) fn parameters(real: usize, expected: usize) -> Error {
