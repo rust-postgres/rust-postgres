@@ -8,10 +8,12 @@ use std::{fmt, io};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 pub(crate) mod private {
+    #[derive(Debug)]
     pub struct ForcePrivateApi;
 }
 
 /// Channel binding information returned from a TLS handshake.
+#[derive(Debug)]
 pub struct ChannelBinding {
     pub(crate) tls_server_end_point: Option<Vec<u8>>,
 }
@@ -106,6 +108,7 @@ impl<S> TlsConnect<S> for NoTls {
 }
 
 /// The future returned by `NoTls`.
+#[derive(Debug)]
 pub struct NoTlsFuture(());
 
 impl Future for NoTlsFuture {
@@ -119,6 +122,7 @@ impl Future for NoTlsFuture {
 /// The TLS "stream" type produced by the `NoTls` connector.
 ///
 /// Since `NoTls` doesn't support TLS, this type is uninhabited.
+#[derive(Debug)]
 pub enum NoTlsStream {}
 
 impl AsyncRead for NoTlsStream {

@@ -4,6 +4,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
+#[derive(Debug)]
 pub enum MaybeTlsStream<S, T> {
     Raw(S),
     Tls(T),

@@ -4,7 +4,7 @@ use tokio_postgres::{Error, Socket};
 
 /// The capability to request cancellation of in-progress queries on a
 /// connection.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CancelToken(tokio_postgres::CancelToken);
 
 impl CancelToken {

@@ -3,7 +3,9 @@ use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::query::extract_row_affected;
 use crate::{query, slice_iter, Error, Statement};
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::Buf as _Buf;
+use bytes::BufMut as _BufMut;
+use bytes::BytesMut;
 use futures_channel::mpsc;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use log::debug;
@@ -11,6 +13,7 @@ use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use postgres_protocol::message::frontend::CopyData;
+use postgres_protocol::types::debug_bytes::Buf;
 use std::future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -21,6 +24,7 @@ enum CopyInMessage {
     Done,
 }
 
+#[derive(Debug)]
 pub struct CopyInReceiver {
     receiver: mpsc::Receiver<CopyInMessage>,
     done: bool,
@@ -63,6 +67,7 @@ impl Stream for CopyInReceiver {
     }
 }
 
+#[derive(Debug)]
 enum SinkState {
     Active,
     Closing,
@@ -75,6 +80,7 @@ pin_project! {
     /// The copy *must* be explicitly completed via the `Sink::close` or `finish` methods. If it is
     /// not, the copy will be aborted.
     #[project(!Unpin)]
+    #[derive(Debug)]
     pub struct CopyInSink<T> {
         #[pin]
         sender: mpsc::Sender<CopyInMessage>,

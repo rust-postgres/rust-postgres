@@ -1,6 +1,7 @@
 use crate::{Error, Notification};
 use futures_util::Stream;
 use std::collections::VecDeque;
+use std::fmt::Debug;
 use std::future::{self, Future};
 use std::ops::{Deref, DerefMut};
 use std::pin::{pin, Pin};
@@ -13,9 +14,23 @@ use tokio_postgres::AsyncMessage;
 
 pub struct Connection {
     runtime: Runtime,
-    connection: Pin<Box<dyn Stream<Item = Result<AsyncMessage, Error>> + Send>>,
+    connection: Pin<Box<dyn ItemConnection + Send>>,
     notifications: VecDeque<Notification>,
     notice_callback: Arc<dyn Fn(DbError) + Sync + Send>,
+}
+
+trait ItemConnection: Stream<Item = Result<AsyncMessage, Error>> + Debug {}
+
+impl<T> ItemConnection for T where T: Stream<Item = Result<AsyncMessage, Error>> + Debug {}
+
+impl Debug for Connection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Connection")
+            .field("runtime", &self.runtime)
+            .field("connection", &self.connection)
+            .field("notifications", &self.notifications)
+            .finish()
+    }
 }
 
 impl Connection {
@@ -25,8 +40,8 @@ impl Connection {
         notice_callback: Arc<dyn Fn(DbError) + Sync + Send>,
     ) -> Connection
     where
-        S: AsyncRead + AsyncWrite + Unpin + 'static + Send,
-        T: AsyncRead + AsyncWrite + Unpin + 'static + Send,
+        S: AsyncRead + AsyncWrite + Unpin + 'static + Send + Debug,
+        T: AsyncRead + AsyncWrite + Unpin + 'static + Send + Debug,
     {
         Connection {
             runtime,
@@ -94,6 +109,7 @@ impl Connection {
     }
 }
 
+#[derive(Debug)]
 pub struct ConnectionRef<'a> {
     connection: &'a mut Connection,
 }
@@ -120,6 +136,7 @@ impl DerefMut for ConnectionRef<'_> {
     }
 }
 
+#[derive(Debug)]
 struct ConnectionStream<S, T> {
     connection: tokio_postgres::Connection<S, T>,
 }

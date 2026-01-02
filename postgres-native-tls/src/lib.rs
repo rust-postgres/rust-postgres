@@ -52,6 +52,7 @@
 //! # }
 //! ```
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
+#![deny(missing_debug_implementations)]
 
 use native_tls::TlsConnectorBuilder;
 use std::future::Future;
@@ -71,7 +72,7 @@ mod test;
 ///
 /// Requires the `runtime` Cargo feature (enabled by default).
 #[cfg(feature = "runtime")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MakeTlsConnector(native_tls::TlsConnector);
 
 #[cfg(feature = "runtime")]
@@ -97,6 +98,7 @@ where
 }
 
 /// A `TlsConnect` implementation using the `native-tls` crate.
+#[derive(Debug)]
 pub struct TlsConnector {
     connector: tokio_native_tls::TlsConnector,
     domain: String,
@@ -134,6 +136,7 @@ where
 }
 
 /// The stream returned by `TlsConnector`.
+#[derive(Debug)]
 pub struct TlsStream<S>(tokio_native_tls::TlsStream<BufReader<S>>);
 
 impl<S> AsyncRead for TlsStream<S>

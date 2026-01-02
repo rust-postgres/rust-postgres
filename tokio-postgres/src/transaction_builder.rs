@@ -20,6 +20,7 @@ pub enum IsolationLevel {
 }
 
 /// A builder for database transactions.
+#[derive(Debug)]
 pub struct TransactionBuilder<'a> {
     client: &'a mut Client,
     isolation_level: Option<IsolationLevel>,

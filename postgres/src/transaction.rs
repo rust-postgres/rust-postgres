@@ -7,6 +7,7 @@ use tokio_postgres::{Error, Row, SimpleQueryMessage};
 ///
 /// Transactions will implicitly roll back by default when dropped. Use the `commit` method to commit the changes made
 /// in the transaction. Transactions can be nested, with inner transactions implemented via savepoints.
+#[derive(Debug)]
 pub struct Transaction<'a> {
     connection: ConnectionRef<'a>,
     transaction: Option<tokio_postgres::Transaction<'a>>,

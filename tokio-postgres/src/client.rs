@@ -16,13 +16,14 @@ use crate::{
     copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
     Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
 };
-use bytes::{Buf, BytesMut};
+use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
+use postgres_protocol::types::debug_bytes::Buf;
 use postgres_types::BorrowToSql;
 use std::collections::HashMap;
 use std::fmt;
@@ -38,6 +39,7 @@ use std::task::{ready, Context, Poll};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+#[derive(Debug)]
 pub struct Responses {
     receiver: mpsc::Receiver<BackendMessages>,
     cur: BackendMessages,
@@ -156,7 +158,7 @@ impl InnerClient {
 }
 
 #[cfg(feature = "runtime")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct SocketConfig {
     pub addr: Addr,
     pub hostname: Option<String>,
@@ -167,7 +169,7 @@ pub(crate) struct SocketConfig {
 }
 
 #[cfg(feature = "runtime")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum Addr {
     Tcp(IpAddr),
     #[cfg(unix)]

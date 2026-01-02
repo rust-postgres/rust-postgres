@@ -7,7 +7,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 /// The capability to request cancellation of in-progress queries on a
 /// connection.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CancelToken {
     #[cfg(feature = "runtime")]
     pub(crate) socket_config: Option<SocketConfig>,

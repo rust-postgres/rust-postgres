@@ -2,6 +2,7 @@ use crate::connection::ConnectionRef;
 use crate::{Error, IsolationLevel, Transaction};
 
 /// A builder for database transactions.
+#[derive(Debug)]
 pub struct TransactionBuilder<'a> {
     connection: ConnectionRef<'a>,
     builder: tokio_postgres::TransactionBuilder<'a>,

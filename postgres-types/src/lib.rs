@@ -182,6 +182,8 @@
 //! }
 //! ```
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
+#![deny(missing_debug_implementations)]
+
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types::{self, ArrayDimension};
 use std::any::type_name;
@@ -813,6 +815,7 @@ impl<'a> FromSql<'a> for IpAddr {
 }
 
 /// An enum representing the nullability of a Postgres value.
+#[derive(Debug)]
 pub enum IsNull {
     /// The value is NULL.
     Yes,

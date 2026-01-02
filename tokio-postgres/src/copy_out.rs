@@ -37,6 +37,7 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
 pin_project! {
     /// A stream of `COPY ... TO STDOUT` query data.
     #[project(!Unpin)]
+    #[derive(Debug)]
     pub struct CopyOutStream {
         responses: Responses,
     }

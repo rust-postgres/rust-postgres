@@ -17,6 +17,7 @@ use std::task::{ready, Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 
+#[derive(Debug)]
 pub enum RequestMessages {
     Single(FrontendMessage),
     CopyIn(CopyInReceiver),
@@ -27,6 +28,7 @@ pub struct Request {
     pub sender: mpsc::Sender<BackendMessages>,
 }
 
+#[derive(Debug)]
 pub struct Response {
     sender: mpsc::Sender<BackendMessages>,
 }
@@ -46,6 +48,7 @@ enum State {
 /// `Connection` implements `Future`, and only resolves when the connection is closed, either because a fatal error has
 /// occurred, or because its associated `Client` has dropped and all outstanding work has completed.
 #[must_use = "futures do nothing unless polled"]
+#[derive(Debug)]
 pub struct Connection<S, T> {
     stream: Framed<MaybeTlsStream<S, T>, PostgresCodec>,
     parameters: HashMap<String, String>,
