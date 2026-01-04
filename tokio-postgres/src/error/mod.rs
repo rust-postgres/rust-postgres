@@ -337,15 +337,25 @@ pub enum ErrorPosition {
     },
 }
 
-#[derive(Debug, PartialEq)]
-enum Kind {
+/// Error kind returned by the database.
+#[allow(missing_docs)]
+#[derive(Debug, PartialEq, Clone)]
+#[non_exhaustive]
+pub enum Kind {
     Io,
     UnexpectedMessage,
     Tls,
     ToSql(usize),
     FromSql(usize),
+    /// A column was fetched from the row which wasn't returned by the database.
+    /// This usually indicates the column wasn't included in the query.
     Column(String),
-    Parameters(usize, usize),
+    /// The number of parameters expected by the query doesn't match the number
+    /// of parameters passed when executing the prepared statement.
+    Parameters {
+        expected: usize,
+        found: usize,
+    },
     Closed,
     Db,
     Parse,
@@ -432,6 +442,11 @@ impl Error {
     /// This is a convenience method that downcasts the cause to a `DbError` and returns its code.
     pub fn code(&self) -> Option<&SqlState> {
         self.as_db_error().map(DbError::code)
+    }
+
+    /// Returns the kind of error.
+    pub fn kind(&self) -> &Kind {
+        &self.0.kind
     }
 
     fn new(kind: Kind, cause: Option<Box<dyn error::Error + Sync + Send>>) -> Error {
