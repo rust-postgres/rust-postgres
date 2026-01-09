@@ -90,6 +90,10 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsConnect<S>,
 {
+    if config.protocol_version.end() < config.protocol_version.start() {
+        return Err(Error::config("invalid protocol versions".into()));
+    }
+
     let stream = connect_tls(
         stream,
         config.ssl_mode,

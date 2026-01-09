@@ -406,6 +406,20 @@ async fn cancel_query_raw() {
 }
 
 #[tokio::test]
+async fn protocol_downgrade() {
+    let socket = TcpStream::connect("127.0.0.1:5434").await.unwrap();
+    let config = "user=postgres max_protocol_version=3.2"
+        .parse::<Config>()
+        .unwrap();
+
+    let (client, connection) = config.connect_raw(socket, NoTls).await.unwrap();
+    let connection = connection.map(|r| r.unwrap());
+    tokio::spawn(connection);
+
+    assert_eq!(client.protocol_version(), (3, 0));
+}
+
+#[tokio::test]
 async fn transaction_commit() {
     let mut client = connect("user=postgres").await;
 
