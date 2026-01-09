@@ -76,3 +76,33 @@ macro_rules! from_usize {
 from_usize!(i16);
 from_usize!(u16);
 from_usize!(i32);
+
+/// Represents a postgres protocol version
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ProtocolVersion {
+    major: u16,
+    minor: u16,
+}
+
+impl std::fmt::Debug for ProtocolVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.major, self.minor)
+    }
+}
+
+impl ProtocolVersion {
+    /// Version 3.0 of the postgres protocol
+    pub const V3_0: ProtocolVersion = ProtocolVersion { major: 3, minor: 0 };
+    /// Version 3.2 of the postgres protocol
+    pub const V3_2: ProtocolVersion = ProtocolVersion { major: 3, minor: 2 };
+
+    /// Get the major version
+    pub fn major(&self) -> u16 {
+        self.major
+    }
+
+    /// Get the minor version
+    pub fn minor(&self) -> u16 {
+        self.minor
+    }
+}

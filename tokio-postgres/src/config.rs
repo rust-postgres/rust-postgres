@@ -13,11 +13,12 @@ use crate::tls::TlsConnect;
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{Client, Connection, Error};
+use postgres_protocol::ProtocolVersion;
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
 use std::net::IpAddr;
-use std::ops::Deref;
+use std::ops::{Deref, RangeInclusive};
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(unix)]
@@ -235,6 +236,7 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
+    pub(crate) protocol_version: RangeInclusive<ProtocolVersion>,
 }
 
 impl Default for Config {
@@ -269,6 +271,7 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
+            protocol_version: ProtocolVersion::V3_0..=ProtocolVersion::V3_0,
         }
     }
 

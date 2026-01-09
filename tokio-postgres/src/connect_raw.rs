@@ -13,6 +13,7 @@ use postgres_protocol::authentication::sasl;
 use postgres_protocol::authentication::sasl::ScramSha256;
 use postgres_protocol::message::backend::{AuthenticationSaslBody, Message};
 use postgres_protocol::message::frontend;
+use postgres_protocol::ProtocolVersion;
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::io;
@@ -109,8 +110,8 @@ where
         None => Cow::Owned(whoami::username().map_err(|err| Error::io(err.into()))?),
     };
 
-    startup(&mut stream, config, &user).await?;
-    authenticate(&mut stream, config, &user).await?;
+    let (auth_msg, version) = startup(&mut stream, config, &user).await?;
+    authenticate(&mut stream, config, &user, auth_msg).await?;
     let (process_id, secret_key, parameters) = read_info(&mut stream).await?;
 
     let (sender, receiver) = mpsc::unbounded();
@@ -120,6 +121,7 @@ where
         config.ssl_negotiation,
         process_id,
         secret_key,
+        version,
     );
     let connection = Connection::new(stream.inner, stream.delayed, parameters, receiver);
 
@@ -130,7 +132,7 @@ async fn startup<S, T>(
     stream: &mut StartupStream<S, T>,
     config: &Config,
     user: &str,
-) -> Result<(), Error>
+) -> Result<(Option<Message>, ProtocolVersion), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
@@ -147,25 +149,42 @@ where
         params.push(("application_name", &**application_name));
     }
 
+    let mut version = *config.protocol_version.end();
+
     let mut buf = BytesMut::new();
-    frontend::startup_message(params, &mut buf).map_err(Error::encode)?;
+    frontend::startup_message_with_version(version, params, &mut buf).map_err(Error::encode)?;
 
     stream
         .send(FrontendMessage::Raw(buf.freeze()))
         .await
-        .map_err(Error::io)
+        .map_err(Error::io)?;
+
+    // check if we need to downgrade the version
+    let mut msg = stream.try_next().await.map_err(Error::io)?;
+    if let Some(Message::NegotiateProtocolVersion(negotiate)) = msg {
+        version = negotiate.version();
+        if !config.protocol_version.contains(&version) {
+            return Err(Error::invalid_protocol_version());
+        }
+
+        // get the next message
+        msg = stream.try_next().await.map_err(Error::io)?
+    };
+
+    Ok((msg, version))
 }
 
 async fn authenticate<S, T>(
     stream: &mut StartupStream<S, T>,
     config: &Config,
     user: &str,
+    auth_msg: Option<Message>,
 ) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsStream + Unpin,
 {
-    match stream.try_next().await.map_err(Error::io)? {
+    match auth_msg {
         Some(Message::AuthenticationOk) => {
             can_skip_channel_binding(config)?;
             return Ok(());
