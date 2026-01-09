@@ -392,6 +392,27 @@ async fn simple_query() {
 async fn cancel_query_raw() {
     let client = connect("user=postgres").await;
 
+    assert_eq!(client.protocol_version(), (3, 0));
+
+    let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
+    let cancel_token = client.cancel_token();
+    let cancel = cancel_token.cancel_query_raw(socket, NoTls);
+    let cancel = time::sleep(Duration::from_millis(100)).then(|()| cancel);
+
+    let sleep = client.batch_execute("SELECT pg_sleep(100)");
+
+    match join!(sleep, cancel) {
+        (Err(ref e), Ok(())) if e.code() == Some(&SqlState::QUERY_CANCELED) => {}
+        t => panic!("unexpected return: {:?}", t),
+    }
+}
+
+#[tokio::test]
+async fn cancel_query_raw_protocol_3_2() {
+    let client = connect("user=postgres max_protocol_version=3.2").await;
+
+    assert_eq!(client.protocol_version(), (3, 2));
+
     let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
     let cancel_token = client.cancel_token();
     let cancel = cancel_token.cancel_query_raw(socket, NoTls);
