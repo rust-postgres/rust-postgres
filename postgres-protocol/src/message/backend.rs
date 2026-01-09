@@ -196,7 +196,14 @@ impl Message {
             EMPTY_QUERY_RESPONSE_TAG => Message::EmptyQueryResponse,
             BACKEND_KEY_DATA_TAG => {
                 let process_id = buf.read_i32::<BigEndian>()?;
-                let secret_key = buf.read_i32::<BigEndian>()?;
+                let secret_key = buf.read_all();
+                if secret_key.len() < 4 || secret_key.len() > 256 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "backend secret key is not the correct format",
+                    ));
+                }
+
                 Message::BackendKeyData(BackendKeyDataBody {
                     process_id,
                     secret_key,
@@ -421,7 +428,7 @@ impl AuthenticationSaslFinalBody {
 
 pub struct BackendKeyDataBody {
     process_id: i32,
-    secret_key: i32,
+    secret_key: Bytes,
 }
 
 impl BackendKeyDataBody {
@@ -432,6 +439,12 @@ impl BackendKeyDataBody {
 
     #[inline]
     pub fn secret_key(&self) -> i32 {
+        // lossy parse the secret key as a big endian i32.
+        i32::from_be_bytes(self.secret_key[..4].try_into().expect("i32 is 4 bytes"))
+    }
+
+    #[inline]
+    pub fn into_large_secret_key(self) -> Bytes {
         self.secret_key
     }
 }

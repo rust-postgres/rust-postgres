@@ -4,7 +4,7 @@ use crate::connect_tls::connect_tls;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::tls::{TlsConnect, TlsStream};
 use crate::{Client, Connection, Error};
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{Sink, SinkExt, Stream, TryStreamExt};
@@ -358,20 +358,20 @@ where
 
 async fn read_info<S, T>(
     stream: &mut StartupStream<S, T>,
-) -> Result<(i32, i32, HashMap<String, String>), Error>
+) -> Result<(i32, Bytes, HashMap<String, String>), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
 {
     let mut process_id = 0;
-    let mut secret_key = 0;
+    let mut secret_key = Bytes::new();
     let mut parameters = HashMap::new();
 
     loop {
         match stream.try_next().await.map_err(Error::io)? {
             Some(Message::BackendKeyData(body)) => {
                 process_id = body.process_id();
-                secret_key = body.secret_key();
+                secret_key = body.into_large_secret_key();
             }
             Some(Message::ParameterStatus(body)) => {
                 parameters.insert(

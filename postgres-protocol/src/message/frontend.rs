@@ -114,10 +114,15 @@ where
 
 #[inline]
 pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut BytesMut) {
+    cancel_request_large_key(process_id, &secret_key.to_be_bytes(), buf);
+}
+
+#[inline]
+pub fn cancel_request_large_key(process_id: i32, secret_key: &[u8], buf: &mut BytesMut) {
     write_body(buf, |buf| {
         buf.put_i32(80_877_102);
         buf.put_i32(process_id);
-        buf.put_i32(secret_key);
+        buf.put(secret_key);
         Ok::<_, io::Error>(())
     })
     .unwrap();

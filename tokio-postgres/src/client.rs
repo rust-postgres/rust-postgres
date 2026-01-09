@@ -16,7 +16,7 @@ use crate::{
     copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
     Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
 };
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{StreamExt, TryStreamExt};
@@ -186,7 +186,7 @@ pub struct Client {
     ssl_mode: SslMode,
     ssl_negotiation: SslNegotiation,
     process_id: i32,
-    secret_key: i32,
+    secret_key: Bytes,
     protocol_version: ProtocolVersion,
 }
 
@@ -196,7 +196,7 @@ impl Client {
         ssl_mode: SslMode,
         ssl_negotiation: SslNegotiation,
         process_id: i32,
-        secret_key: i32,
+        secret_key: Bytes,
         protocol_version: ProtocolVersion,
     ) -> Client {
         Client {
@@ -642,7 +642,7 @@ impl Client {
             ssl_mode: self.ssl_mode,
             ssl_negotiation: self.ssl_negotiation,
             process_id: self.process_id,
-            secret_key: self.secret_key,
+            secret_key: self.secret_key.clone(),
         }
     }
 
