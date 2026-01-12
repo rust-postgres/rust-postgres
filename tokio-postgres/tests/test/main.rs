@@ -169,6 +169,30 @@ async fn pipelined_prepare() {
 }
 
 #[tokio::test]
+async fn prepare_type_modifier() {
+    let client = connect("user=postgres").await;
+
+    let statement = client
+        .prepare("SELECT $1::BIGINT, $2::VARCHAR(7), $3::VARCHAR(101)")
+        .await
+        .unwrap();
+
+    let varlena_header_length = 4;
+    assert_eq!(statement.columns()[0].type_(), &Type::INT8);
+    assert_eq!(statement.columns()[0].type_modifier(), -1);
+    assert_eq!(statement.columns()[1].type_(), &Type::VARCHAR);
+    assert_eq!(
+        statement.columns()[1].type_modifier(),
+        7 + varlena_header_length
+    );
+    assert_eq!(statement.columns()[2].type_(), &Type::VARCHAR);
+    assert_eq!(
+        statement.columns()[2].type_modifier(),
+        101 + varlena_header_length
+    );
+}
+
+#[tokio::test]
 async fn insert_select() {
     let client = connect("user=postgres").await;
 
@@ -1080,4 +1104,71 @@ async fn query_typed_with_transaction() {
         .await
         .unwrap();
     assert_eq!(updated_rows.len(), 0);
+}
+
+#[tokio::test]
+async fn query_scalar() {
+    let client = connect("user=postgres").await;
+    client
+        .batch_execute(
+            "
+            CREATE TEMPORARY TABLE person (
+                id serial,
+                name text NOT NULL,
+                age integer
+            );
+            INSERT INTO person (name, age) VALUES ('steven', 18);
+            INSERT INTO person (name, age) VALUES ('fred', 20);
+            INSERT INTO person (name, age) VALUES ('john', NULL);
+            ",
+        )
+        .await
+        .unwrap();
+
+    let ages: Vec<i32> = client
+        .query_scalar(
+            "SELECT age FROM person WHERE name = ANY($1)",
+            &[&vec!["steven", "fred"]],
+        )
+        .await
+        .unwrap();
+    assert_eq!(ages, vec![18, 20]);
+
+    let error: Error = client
+        .query_scalar::<Vec<i32>, _>("SELECT name, age FROM person", &[])
+        .await
+        .unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("query returned an unexpected number of columns"));
+
+    let ages: Vec<Option<i32>> = client
+        .query_scalar("SELECT age FROM person", &[])
+        .await
+        .unwrap();
+    assert_eq!(ages, vec![Some(18), Some(20), None]);
+
+    let age: i32 = client
+        .query_one_scalar("SELECT age FROM person WHERE name = $1", &[&"steven"])
+        .await
+        .unwrap();
+    assert_eq!(age, 18);
+
+    let age: Option<i32> = client
+        .query_one_scalar("SELECT age FROM person WHERE name = $1", &[&"john"])
+        .await
+        .unwrap();
+    assert_eq!(age, None);
+
+    let age: Option<i32> = client
+        .query_opt_scalar("SELECT age FROM person WHERE name = $1", &[&"bill"])
+        .await
+        .unwrap();
+    assert_eq!(age, None);
+
+    let age: Option<i32> = client
+        .query_opt_scalar("SELECT age FROM person WHERE name = $1", &[&"fred"])
+        .await
+        .unwrap();
+    assert_eq!(age, Some(20));
 }

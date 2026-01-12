@@ -104,10 +104,10 @@ where
         delayed: VecDeque::new(),
     };
 
-    let user = config
-        .user
-        .as_deref()
-        .map_or_else(|| Cow::Owned(whoami::username()), Cow::Borrowed);
+    let user = match config.user.as_deref() {
+        Some(user) => Cow::Borrowed(user),
+        None => Cow::Owned(whoami::username().map_err(|err| Error::io(err.into()))?),
+    };
 
     startup(&mut stream, config, &user).await?;
     authenticate(&mut stream, config, &user).await?;

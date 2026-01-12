@@ -70,7 +70,7 @@ pub(crate) fn scram_sha_256_salt(password: &[u8], salt: [u8; SCRAM_DEFAULT_SALT_
 
     // stored key
     let mut hash = Sha256::default();
-    hash.update(client_key.as_slice());
+    hash.update(client_key);
     let stored_key = hash.finalize_fixed();
 
     // server key
