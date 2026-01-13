@@ -595,6 +595,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Vec<T> {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Vec<T>, Box<dyn Error + Sync + Send>> {
         let member_type = match *ty.kind() {
             Kind::Array(ref member) => member,
+            Kind::Pseudo if ty == &Type::RECORD_ARRAY => &Type::RECORD,
             _ => panic!("expected array type"),
         };
 
@@ -612,6 +613,7 @@ impl<'a, T: FromSql<'a>> FromSql<'a> for Vec<T> {
     fn accepts(ty: &Type) -> bool {
         match *ty.kind() {
             Kind::Array(ref inner) => T::accepts(inner),
+            Kind::Pseudo if ty == &Type::RECORD_ARRAY => T::accepts(&Type::RECORD),
             _ => false,
         }
     }
@@ -622,6 +624,7 @@ impl<'a, T: FromSql<'a>, const N: usize> FromSql<'a> for [T; N] {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
         let member_type = match *ty.kind() {
             Kind::Array(ref member) => member,
+            Kind::Pseudo if ty == &Type::RECORD_ARRAY => &Type::RECORD,
             _ => panic!("expected array type"),
         };
 
@@ -651,6 +654,7 @@ impl<'a, T: FromSql<'a>, const N: usize> FromSql<'a> for [T; N] {
     fn accepts(ty: &Type) -> bool {
         match *ty.kind() {
             Kind::Array(ref inner) => T::accepts(inner),
+            Kind::Pseudo if ty == &Type::RECORD_ARRAY => T::accepts(&Type::RECORD),
             _ => false,
         }
     }
@@ -810,6 +814,74 @@ impl<'a> FromSql<'a> for IpAddr {
     }
 
     accepts!(INET);
+}
+
+macro_rules! tuple_impls {
+    ($(($($Type:ident),*) => $len:literal),*) => {
+        $(
+            impl<'a, $($Type: FromSql<'a>),*> FromSql<'a> for ($($Type),*) {
+                fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+                    let record = types::record_from_sql(raw)?;
+
+                    if $len != record.len() {
+                        return Err(
+                            format!("expected as record type with {} fields, found {} fields", $len, record.len())
+                            .into(),
+                        );
+                    }
+
+                    let mut fields = record.fields();
+
+                    Ok((
+                        $({
+                            let field = fields.next()?
+                                .ok_or_else(|| -> Box<dyn Error + Sync + Send> {
+                                    "not enough fields for record".into()
+                                })?;
+
+                            let ty = Type::from_oid(field.field_type())
+                                .ok_or_else(|| -> Box<dyn Error + Sync + Send> {
+                                    "could not find type for record field, only built-in postgres types are currently supported inside records".into()
+                                })?;
+
+
+                            if $Type::accepts(&ty) {
+                                $Type::from_sql_nullable(&ty, field.bytes())?
+                            } else {
+                                return Err(Box::new(WrongType::new::<$Type>(ty)));
+                            }
+                        }),*
+                    ))
+                }
+
+                fn accepts(ty: &Type) -> bool {
+                    *ty == Type::RECORD && *ty.kind() == Kind::Pseudo
+                }
+            }
+        )*
+    };
+}
+
+tuple_impls! {
+    (C0, C1) => 2,
+    (C0, C1, C2) => 3,
+    (C0, C1, C2, C3) => 4,
+    (C0, C1, C2, C3, C4) => 5,
+    (C0, C1, C2, C3, C4, C5) => 6,
+    (C0, C1, C2, C3, C4, C5, C6) => 7,
+    (C0, C1, C2, C3, C4, C5, C6, C7) => 8,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8) => 9,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9) => 10,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10) => 11,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11) => 12,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12) => 13,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13) => 14,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14) => 15,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15) => 16,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16) => 17,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16, C17) => 18,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16, C17, C18) => 19,
+    (C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16, C17, C18, C19) => 20
 }
 
 /// An enum representing the nullability of a Postgres value.
