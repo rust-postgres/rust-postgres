@@ -656,6 +656,104 @@ impl<'a> FallibleIterator for ArrayValues<'a> {
     }
 }
 
+/// Serializes a record value.
+pub fn record_from_sql(mut buf: &[u8]) -> Result<Record<'_>, StdBox<dyn Error + Sync + Send>> {
+    let len = buf.read_i32::<BigEndian>()?;
+
+    Ok(Record { len, buf })
+}
+
+/// A postgres record value.
+pub struct Record<'a> {
+    len: i32,
+    buf: &'a [u8],
+}
+
+impl<'a> Record<'a> {
+    /// The amount of fields this record has.
+    #[inline]
+    pub fn len(&self) -> i32 {
+        self.len
+    }
+
+    /// Checks if the record has no fields.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len <= 0
+    }
+
+    /// Create an iterator over the fields of this record.
+    pub fn fields(&self) -> RecordFields<'a> {
+        RecordFields {
+            remaining: self.len,
+            buf: self.buf,
+        }
+    }
+}
+
+/// A fallible iterator over the fields on an anonymous record.
+pub struct RecordFields<'a> {
+    remaining: i32,
+    buf: &'a [u8],
+}
+
+impl<'a> FallibleIterator for RecordFields<'a> {
+    type Item = RecordField<'a>;
+    type Error = StdBox<dyn Error + Sync + Send>;
+
+    fn next(&mut self) -> Result<Option<Self::Item>, Self::Error> {
+        if self.remaining == 0 {
+            if !self.buf.is_empty() {
+                return Err("invalid message length: record fields not drained".into());
+            }
+
+            return Ok(None);
+        }
+
+        self.remaining -= 1;
+
+        let field_type = self.buf.read_u32::<BigEndian>()?;
+        let len = self.buf.read_i32::<BigEndian>()?;
+
+        let bytes = if len < 0 {
+            None
+        } else {
+            let len = len as usize;
+
+            if self.buf.len() < len {
+                return Err("invalid value length".into());
+            }
+
+            let (bytes, buf) = self.buf.split_at(len);
+            self.buf = buf;
+
+            Some(bytes)
+        };
+
+        Ok(Some(RecordField { field_type, bytes }))
+    }
+}
+
+/// A single field of an anonymous record.
+pub struct RecordField<'a> {
+    field_type: Oid,
+    bytes: Option<&'a [u8]>,
+}
+
+impl<'a> RecordField<'a> {
+    /// The type oid of this field.
+    #[inline]
+    pub fn field_type(&self) -> Oid {
+        self.field_type
+    }
+
+    /// The bytes that make up the value of this field.
+    #[inline]
+    pub fn bytes(&self) -> Option<&'a [u8]> {
+        self.bytes
+    }
+}
+
 /// Serializes an empty range.
 #[inline]
 pub fn empty_range_to_sql(buf: &mut BytesMut) {
