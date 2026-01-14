@@ -1169,7 +1169,7 @@ dependencies = [
 
 [[package]]
 name = "postgres-types"
-version = "0.2.11"
+version = "0.2.12"
 dependencies = [
  "array-init",
  "bit-vec 0.6.3",

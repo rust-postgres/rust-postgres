@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.2.12 - 2026-01-14
+
+### Added
+
+* Added `ToSql` implementation for `Box<T>` where `T: ToSql`.
+
 ## v0.2.11 - 2025-10-08
 
 ### Changed
