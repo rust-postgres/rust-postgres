@@ -39,7 +39,6 @@ jobs:
           key: index-${{ runner.os }}-${{ github.run_number }}
           restore-keys: |
             index-${{ runner.os }}-
-      - run: cargo generate-lockfile
       - uses: actions/cache@v4
         with:
           path: ~/.cargo/registry/cache
@@ -67,7 +66,6 @@ jobs:
           key: index-${{ runner.os }}-${{ github.run_number }}
           restore-keys: |
             index-${{ runner.os }}-
-      - run: cargo generate-lockfile
       - uses: actions/cache@v4
         with:
           path: ~/.cargo/registry/cache
@@ -96,7 +94,6 @@ jobs:
           key: index-${{ runner.os }}-${{ github.run_number }}
           restore-keys: |
             index-${{ runner.os }}-
-      - run: cargo generate-lockfile
       - uses: actions/cache@v4
         with:
           path: ~/.cargo/registry/cache
