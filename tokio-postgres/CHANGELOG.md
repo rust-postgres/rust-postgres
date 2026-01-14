@@ -1,5 +1,17 @@
 # Change Log
 
+## v0.7.16 - 2026-01-14
+
+### Added
+
+* Added `Client::query_scalar`, `Client::query_one_scalar`, and `Client::query_opt_scalar` methods.
+* Added `Row::raw_size_bytes` method.
+* Added `Column::type_modifier` method.
+
+### Changed
+
+* Upgraded `whoami` to v2.
+
 ## v0.7.15 - 2025-10-08
 
 ### Added
