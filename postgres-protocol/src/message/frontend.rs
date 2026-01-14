@@ -7,6 +7,7 @@ use std::error::Error;
 use std::io;
 use std::marker;
 
+use crate::ProtocolVersion;
 use crate::{write_nullable, FromUsize, IsNull, Oid};
 
 #[inline]
@@ -113,10 +114,15 @@ where
 
 #[inline]
 pub fn cancel_request(process_id: i32, secret_key: i32, buf: &mut BytesMut) {
+    cancel_request_large_key(process_id, &secret_key.to_be_bytes(), buf);
+}
+
+#[inline]
+pub fn cancel_request_large_key(process_id: i32, secret_key: &[u8], buf: &mut BytesMut) {
     write_body(buf, |buf| {
         buf.put_i32(80_877_102);
         buf.put_i32(process_id);
-        buf.put_i32(secret_key);
+        buf.put(secret_key);
         Ok::<_, io::Error>(())
     })
     .unwrap();
@@ -258,9 +264,22 @@ pub fn startup_message<'a, I>(parameters: I, buf: &mut BytesMut) -> io::Result<(
 where
     I: IntoIterator<Item = (&'a str, &'a str)>,
 {
+    startup_message_with_version(ProtocolVersion::V3_0, parameters, buf)
+}
+
+#[inline]
+pub fn startup_message_with_version<'a, I>(
+    version: ProtocolVersion,
+    parameters: I,
+    buf: &mut BytesMut,
+) -> io::Result<()>
+where
+    I: IntoIterator<Item = (&'a str, &'a str)>,
+{
     write_body(buf, |buf| {
-        // postgres protocol version 3.0(196608) in big-endian
-        buf.put_i32(0x00_03_00_00);
+        // postgres protocol version
+        buf.put_u16(version.major);
+        buf.put_u16(version.minor);
         for (key, value) in parameters {
             write_cstr(key.as_bytes(), buf)?;
             write_cstr(value.as_bytes(), buf)?;

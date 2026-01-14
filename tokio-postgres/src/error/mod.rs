@@ -341,6 +341,7 @@ pub enum ErrorPosition {
 enum Kind {
     Io,
     UnexpectedMessage,
+    InvalidProtocolVersion,
     Tls,
     ToSql(usize),
     FromSql(usize),
@@ -382,6 +383,9 @@ impl fmt::Display for Error {
         match &self.0.kind {
             Kind::Io => fmt.write_str("error communicating with the server"),
             Kind::UnexpectedMessage => fmt.write_str("unexpected message from server"),
+            Kind::InvalidProtocolVersion => {
+                fmt.write_str("unsupported protocol version from server")
+            }
             Kind::Tls => fmt.write_str("error performing TLS handshake"),
             Kind::ToSql(idx) => write!(fmt, "error serializing parameter {idx}"),
             Kind::FromSql(idx) => write!(fmt, "error deserializing column {idx}"),
@@ -446,6 +450,10 @@ impl Error {
 
     pub(crate) fn unexpected_message() -> Error {
         Error::new(Kind::UnexpectedMessage, None)
+    }
+
+    pub(crate) fn invalid_protocol_version() -> Error {
+        Error::new(Kind::InvalidProtocolVersion, None)
     }
 
     #[allow(clippy::needless_pass_by_value)]
