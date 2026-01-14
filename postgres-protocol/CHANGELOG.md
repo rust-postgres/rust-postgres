@@ -1,5 +1,15 @@
 # Change Log
 
+## v0.6.10 - 2026-01-14
+
+### Added
+
+* Implemented `FallibleIterator::size_hint` for `Fields`.
+
+### Fixed
+
+* Increased bind parameter limit from `i16::MAX` to `u16::MAX`.
+
 ## v0.6.9 - 2025-09-25
 
 ### Changed
