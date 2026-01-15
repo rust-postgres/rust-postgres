@@ -1,4 +1,5 @@
 use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
+use crate::copy_both::CopyBothReceiver;
 use crate::copy_in::CopyInReceiver;
 use crate::error::DbError;
 use crate::maybe_tls_stream::MaybeTlsStream;
@@ -20,6 +21,7 @@ use tokio_util::codec::Framed;
 pub enum RequestMessages {
     Single(FrontendMessage),
     CopyIn(CopyInReceiver),
+    CopyBoth(CopyBothReceiver),
 }
 
 pub struct Request {
@@ -257,6 +259,24 @@ where
                         .start_send(message)
                         .map_err(Error::io)?;
                     self.pending_request = Some(RequestMessages::CopyIn(receiver));
+                }
+                RequestMessages::CopyBoth(mut receiver) => {
+                    let message = match receiver.poll_next_unpin(cx) {
+                        Poll::Ready(Some(message)) => message,
+                        Poll::Ready(None) => {
+                            trace!("poll_write: finished copy_both request");
+                            continue;
+                        }
+                        Poll::Pending => {
+                            trace!("poll_write: waiting on copy_both stream");
+                            self.pending_request = Some(RequestMessages::CopyBoth(receiver));
+                            return Ok(true);
+                        }
+                    };
+                    Pin::new(&mut self.stream)
+                        .start_send(message)
+                        .map_err(Error::io)?;
+                    self.pending_request = Some(RequestMessages::CopyBoth(receiver));
                 }
             }
         }
