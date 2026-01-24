@@ -4,5 +4,11 @@ updates:
   directory: "/"
   schedule:
     interval: daily
-    time: "13:00"
+    time: "08:00"
+    timezone: "Europe/Rome"
   open-pull-requests-limit: 10
+  ignore:
+    - dependency-name: "*"
+      update-types:
+        - "version-update:semver-minor"
+        - "version-update:semver-patch"
