@@ -83,6 +83,48 @@ impl Client {
         self.connection.block_on(self.client.execute(query, params))
     }
 
+    /// Executes a statement, returning the number of rows modified.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    ///
+    /// Compared to `execute`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
+    ///
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls, types::Type};
+    ///
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let bar = 1i32;
+    /// let baz = true;
+    /// let rows_updated = client.execute_typed(
+    ///     "UPDATE foo SET bar = $1 WHERE baz = $2",
+    ///     &[(&bar, Type::INT4), (&baz, Type::BOOL)],
+    /// )?;
+    ///
+    /// println!("{} rows updated", rows_updated);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn execute_typed(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<u64, Error> {
+        self.connection
+            .block_on(self.client.execute_typed(query, params))
+    }
+
     /// Executes a statement, returning the resulting rows.
     ///
     /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
@@ -273,6 +315,49 @@ impl Client {
     ) -> Result<Vec<Row>, Error> {
         self.connection
             .block_on(self.client.query_typed(query, params))
+    }
+
+    /// Like `query_one`, but requires the types of query parameters to be explicitly specified.
+    ///
+    /// Compared to `query_one`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// Executes a statement which returns a single row, returning it.
+    ///
+    /// Returns an error if the query does not return exactly one row.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    pub fn query_typed_one(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Row, Error> {
+        self.connection
+            .block_on(self.client.query_typed_one(query, params))
+    }
+
+    /// Like `query_opt`, but requires the types of query parameters to be explicitly specified.
+    ///
+    /// Compared to `query_opt`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    /// Executes a statement which returns zero or one rows, returning it.
+    ///
+    /// Returns an error if the query returns more than one row.
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    pub fn query_typed_opt(
+        &mut self,
+        query: &str,
+        params: &[(&(dyn ToSql + Sync), Type)],
+    ) -> Result<Option<Row>, Error> {
+        self.connection
+            .block_on(self.client.query_typed_opt(query, params))
     }
 
     /// The maximally flexible version of [`query_typed`].
