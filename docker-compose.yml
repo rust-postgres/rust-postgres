@@ -8,3 +8,12 @@ services:
       - ./docker/sql_setup.sh:/docker-entrypoint-initdb.d/sql_setup.sh
     environment:
       POSTGRES_PASSWORD: postgres
+
+  postgres_17:
+    image: docker.io/postgres:17
+    ports:
+      - 5434:5433
+    volumes:
+      - ./docker/sql_setup.sh:/docker-entrypoint-initdb.d/sql_setup.sh
+    environment:
+      POSTGRES_PASSWORD: postgres
