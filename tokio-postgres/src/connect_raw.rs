@@ -1,5 +1,5 @@
 use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
-use crate::config::{self, Config};
+use crate::config::{self, Config, ReplicationMode};
 use crate::connect_tls::connect_tls;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::tls::{TlsConnect, TlsStream};
@@ -145,6 +145,12 @@ where
     }
     if let Some(application_name) = &config.application_name {
         params.push(("application_name", &**application_name));
+    }
+    if let Some(replication_mode) = &config.replication_mode {
+        match replication_mode {
+            ReplicationMode::Physical => params.push(("replication", "true")),
+            ReplicationMode::Logical => params.push(("replication", "database")),
+        }
     }
 
     let mut buf = BytesMut::new();

@@ -88,6 +88,21 @@ pub enum LoadBalanceHosts {
     Random,
 }
 
+/// Replication mode configuration.
+///
+/// It is recommended that you use a PostgreSQL server patch version
+/// of at least: 14.0, 13.2, 12.6, 11.11, 10.16, 9.6.21, or
+/// 9.5.25. Earlier patch levels have a bug that doesn't properly
+/// handle pipelined requests after streaming has stopped.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ReplicationMode {
+    /// Physical replication.
+    Physical,
+    /// Logical replication.
+    Logical,
+}
+
 /// A host specification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Host {
@@ -235,6 +250,7 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
+    pub(crate) replication_mode: Option<ReplicationMode>,
 }
 
 impl Default for Config {
@@ -269,6 +285,7 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
+            replication_mode: None,
         }
     }
 
@@ -564,6 +581,22 @@ impl Config {
         self.load_balance_hosts
     }
 
+    /// Set replication mode.
+    ///
+    /// It is recommended that you use a PostgreSQL server patch version
+    /// of at least: 14.0, 13.2, 12.6, 11.11, 10.16, 9.6.21, or
+    /// 9.5.25. Earlier patch levels have a bug that doesn't properly
+    /// handle pipelined requests after streaming has stopped.
+    pub fn replication_mode(&mut self, replication_mode: ReplicationMode) -> &mut Config {
+        self.replication_mode = Some(replication_mode);
+        self
+    }
+
+    /// Get replication mode.
+    pub fn get_replication_mode(&self) -> Option<ReplicationMode> {
+        self.replication_mode
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -712,6 +745,17 @@ impl Config {
                 };
                 self.load_balance_hosts(load_balance_hosts);
             }
+            "replication" => {
+                let mode = match value {
+                    "off" => None,
+                    "true" => Some(ReplicationMode::Physical),
+                    "database" => Some(ReplicationMode::Logical),
+                    _ => return Err(Error::config_parse(Box::new(InvalidValue("replication")))),
+                };
+                if let Some(mode) = mode {
+                    self.replication_mode(mode);
+                }
+            }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
                     key.to_string(),
@@ -797,6 +841,7 @@ impl fmt::Debug for Config {
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
             .field("load_balance_hosts", &self.load_balance_hosts)
+            .field("replication", &self.replication_mode)
             .finish()
     }
 }
