@@ -1352,3 +1352,60 @@ async fn query_scalar() {
         .unwrap();
     assert_eq!(age, Some(20));
 }
+
+#[tokio::test]
+async fn records() {
+    let client = connect("user=postgres").await;
+
+    let record: (i32, i32, i32, i32, i32) = client
+        .query_one_scalar("SELECT (1, 2, 3, 4, 5)", &[])
+        .await
+        .unwrap();
+
+    assert_eq!(record, (1, 2, 3, 4, 5));
+}
+
+#[tokio::test]
+async fn records_nested() {
+    let client = connect("user=postgres").await;
+    type Record = ((String, (i32, (i32, i32))), i32);
+
+    let nested: Record = client
+        .query_one_scalar("SELECT (('fred', (0, (1, 2))), 3)", &[])
+        .await
+        .unwrap();
+
+    match &nested {
+        ((fred, (0, (1, 2))), 3) if fred == "fred" => {}
+        _ => panic!("value {:?} does not match", nested),
+    }
+}
+
+#[tokio::test]
+async fn array_of_records() {
+    let client = connect("user=postgres").await;
+
+    let record: Vec<(i32, i32)> = client
+        .query_one_scalar("SELECT ARRAY[(1, 2), (3, 4)]", &[])
+        .await
+        .unwrap();
+
+    assert_eq!(record, vec![(1, 2), (3, 4)]);
+}
+
+#[tokio::test]
+async fn array_of_records_wrong_type() {
+    let client = connect("user=postgres").await;
+
+    let record: Result<Vec<(String, i32)>, _> = client
+        .query_one_scalar("SELECT ARRAY[(1, 2), (3, 4)]", &[])
+        .await;
+
+    if let Err(err) = record {
+        assert_eq!("error deserializing column 0", err.to_string());
+        let cause = &err.into_source().unwrap();
+        assert_eq!("cannot convert between the Rust type `alloc::string::String` and the Postgres type `int4`", cause.to_string());
+    } else {
+        panic!("wrong type should fail with wrong type error");
+    };
+}
