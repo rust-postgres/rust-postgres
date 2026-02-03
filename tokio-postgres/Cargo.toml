@@ -48,7 +48,7 @@ js = ["postgres-protocol/js", "postgres-types/js"]
 
 [dependencies]
 async-trait = "0.1"
-bytes = "1.0"
+bytes = "1.11"
 byteorder = "1.0"
 fallible-iterator = "0.2"
 futures-channel = { version = "0.3", features = ["sink"] }
