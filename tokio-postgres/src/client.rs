@@ -16,13 +16,14 @@ use crate::{
     copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
     Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
 };
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
+use postgres_protocol::ProtocolVersion;
 use postgres_types::{BorrowToSql, FromSqlOwned};
 use std::collections::HashMap;
 use std::fmt;
@@ -185,7 +186,8 @@ pub struct Client {
     ssl_mode: SslMode,
     ssl_negotiation: SslNegotiation,
     process_id: i32,
-    secret_key: i32,
+    secret_key: Bytes,
+    protocol_version: ProtocolVersion,
 }
 
 impl Client {
@@ -194,7 +196,8 @@ impl Client {
         ssl_mode: SslMode,
         ssl_negotiation: SslNegotiation,
         process_id: i32,
-        secret_key: i32,
+        secret_key: Bytes,
+        protocol_version: ProtocolVersion,
     ) -> Client {
         Client {
             inner: Arc::new(InnerClient {
@@ -208,6 +211,7 @@ impl Client {
             ssl_negotiation,
             process_id,
             secret_key,
+            protocol_version,
         }
     }
 
@@ -725,7 +729,7 @@ impl Client {
             ssl_mode: self.ssl_mode,
             ssl_negotiation: self.ssl_negotiation,
             process_id: self.process_id,
-            secret_key: self.secret_key,
+            secret_key: self.secret_key.clone(),
         }
     }
 
@@ -769,6 +773,13 @@ impl Client {
     /// In that case, all future queries will fail.
     pub fn is_closed(&self) -> bool {
         self.inner.sender.is_closed()
+    }
+
+    /// Returns the current postgres protocol version.
+    ///
+    /// Currently supported versions are `(3, 0)` and `(3, 2)`.
+    pub fn protocol_version(&self) -> (u16, u16) {
+        (self.protocol_version.major(), self.protocol_version.minor())
     }
 
     #[doc(hidden)]

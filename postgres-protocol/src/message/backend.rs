@@ -10,6 +10,7 @@ use std::ops::Range;
 use std::str;
 
 use crate::Oid;
+use crate::ProtocolVersion;
 
 pub const PARSE_COMPLETE_TAG: u8 = b'1';
 pub const BIND_COMPLETE_TAG: u8 = b'2';
@@ -24,6 +25,7 @@ pub const COPY_IN_RESPONSE_TAG: u8 = b'G';
 pub const COPY_OUT_RESPONSE_TAG: u8 = b'H';
 pub const EMPTY_QUERY_RESPONSE_TAG: u8 = b'I';
 pub const BACKEND_KEY_DATA_TAG: u8 = b'K';
+pub const NEGOTIATE_PROTOCOL_VERSION_TAG: u8 = b'v';
 pub const NO_DATA_TAG: u8 = b'n';
 pub const NOTICE_RESPONSE_TAG: u8 = b'N';
 pub const AUTHENTICATION_TAG: u8 = b'R';
@@ -96,6 +98,7 @@ pub enum Message {
     DataRow(DataRowBody),
     EmptyQueryResponse,
     ErrorResponse(ErrorResponseBody),
+    NegotiateProtocolVersion(NegotiateProtocolVersionBody),
     NoData,
     NoticeResponse(NoticeResponseBody),
     NotificationResponse(NotificationResponseBody),
@@ -193,10 +196,28 @@ impl Message {
             EMPTY_QUERY_RESPONSE_TAG => Message::EmptyQueryResponse,
             BACKEND_KEY_DATA_TAG => {
                 let process_id = buf.read_i32::<BigEndian>()?;
-                let secret_key = buf.read_i32::<BigEndian>()?;
+                let secret_key = buf.read_all();
+                if secret_key.len() < 4 || secret_key.len() > 256 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "backend secret key is not the correct format",
+                    ));
+                }
+
                 Message::BackendKeyData(BackendKeyDataBody {
                     process_id,
                     secret_key,
+                })
+            }
+            NEGOTIATE_PROTOCOL_VERSION_TAG => {
+                let major = buf.read_u16::<BigEndian>()?;
+                let minor = buf.read_u16::<BigEndian>()?;
+                let len = buf.read_i32::<BigEndian>()?;
+                let storage = buf.read_all();
+                Message::NegotiateProtocolVersion(NegotiateProtocolVersionBody {
+                    version: ProtocolVersion { major, minor },
+                    len,
+                    storage,
                 })
             }
             NO_DATA_TAG => Message::NoData,
@@ -407,7 +428,7 @@ impl AuthenticationSaslFinalBody {
 
 pub struct BackendKeyDataBody {
     process_id: i32,
-    secret_key: i32,
+    secret_key: Bytes,
 }
 
 impl BackendKeyDataBody {
@@ -418,6 +439,12 @@ impl BackendKeyDataBody {
 
     #[inline]
     pub fn secret_key(&self) -> i32 {
+        // lossy parse the secret key as a big endian i32.
+        i32::from_be_bytes(self.secret_key[..4].try_into().expect("i32 is 4 bytes"))
+    }
+
+    #[inline]
+    pub fn into_large_secret_key(self) -> Bytes {
         self.secret_key
     }
 }
@@ -660,6 +687,57 @@ impl ErrorField<'_> {
     #[inline]
     pub fn value_bytes(&self) -> &[u8] {
         self.value
+    }
+}
+
+pub struct NegotiateProtocolVersionBody {
+    version: ProtocolVersion,
+    len: i32,
+    storage: Bytes,
+}
+
+impl NegotiateProtocolVersionBody {
+    /// Newest minor protocol version supported by the server
+    /// for the major protocol version requested by the client.
+    pub fn version(&self) -> ProtocolVersion {
+        self.version
+    }
+
+    pub fn unrecognized_protocol_options(&self) -> UnrecognizedProtocolOptions<'_> {
+        UnrecognizedProtocolOptions {
+            buf: &self.storage,
+            remaining: self.len,
+        }
+    }
+}
+
+pub struct UnrecognizedProtocolOptions<'a> {
+    buf: &'a [u8],
+    remaining: i32,
+}
+
+impl<'a> FallibleIterator for UnrecognizedProtocolOptions<'a> {
+    type Error = io::Error;
+    type Item = &'a str;
+
+    fn next(&mut self) -> Result<Option<Self::Item>, Self::Error> {
+        if self.remaining <= 0 {
+            return Ok(None);
+        }
+
+        let Some(index) = memchr(b'\0', self.buf) else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "could not read string from unrecognized protocol options",
+            ));
+        };
+
+        let (out, rest) = self.buf.split_at(index);
+
+        // strip the `\0`.
+        self.buf = &rest[1..];
+
+        Ok(Some(get_str(out)?))
     }
 }
 

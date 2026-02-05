@@ -10,7 +10,7 @@ pub(crate) async fn cancel_query<T>(
     ssl_negotiation: SslNegotiation,
     mut tls: T,
     process_id: i32,
-    secret_key: i32,
+    secret_key: &[u8],
 ) -> Result<(), Error>
 where
     T: MakeTlsConnect<Socket>,

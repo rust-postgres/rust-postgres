@@ -13,11 +13,12 @@ use crate::tls::TlsConnect;
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{Client, Connection, Error};
+use postgres_protocol::ProtocolVersion;
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
 use std::net::IpAddr;
-use std::ops::Deref;
+use std::ops::{Deref, RangeInclusive};
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(unix)]
@@ -235,6 +236,7 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
+    pub(crate) protocol_version: RangeInclusive<ProtocolVersion>,
 }
 
 impl Default for Config {
@@ -269,6 +271,7 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
+            protocol_version: ProtocolVersion::V3_0..=ProtocolVersion::V3_0,
         }
     }
 
@@ -712,6 +715,34 @@ impl Config {
                 };
                 self.load_balance_hosts(load_balance_hosts);
             }
+            "min_protocol_version" => {
+                let min_protocl_version = match value {
+                    "latest" => ProtocolVersion::V3_2,
+                    "3.0" => ProtocolVersion::V3_0,
+                    "3.2" => ProtocolVersion::V3_2,
+                    _ => {
+                        return Err(Error::config_parse(Box::new(InvalidValue(
+                            "min_protocol_version",
+                        ))))
+                    }
+                };
+
+                self.protocol_version = min_protocl_version..=*self.protocol_version.end();
+            }
+            "max_protocol_version" => {
+                let max_protocl_version = match value {
+                    "latest" => ProtocolVersion::V3_2,
+                    "3.0" => ProtocolVersion::V3_0,
+                    "3.2" => ProtocolVersion::V3_2,
+                    _ => {
+                        return Err(Error::config_parse(Box::new(InvalidValue(
+                            "max_protocol_version",
+                        ))))
+                    }
+                };
+
+                self.protocol_version = *self.protocol_version.start()..=max_protocl_version;
+            }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
                     key.to_string(),
@@ -783,7 +814,9 @@ impl fmt::Debug for Config {
             .field("port", &self.port)
             .field("connect_timeout", &self.connect_timeout)
             .field("tcp_user_timeout", &self.tcp_user_timeout)
-            .field("keepalives", &self.keepalives);
+            .field("keepalives", &self.keepalives)
+            .field("min_protocol_version", self.protocol_version.start())
+            .field("max_protocol_version", self.protocol_version.end());
 
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -1174,11 +1207,13 @@ impl<'a> UrlParser<'a> {
 mod tests {
     use std::net::IpAddr;
 
+    use postgres_protocol::ProtocolVersion;
+
     use crate::{config::Host, Config};
 
     #[test]
     fn test_simple_parsing() {
-        let s = "user=pass_user dbname=postgres host=host1,host2 hostaddr=127.0.0.1,127.0.0.2 port=26257";
+        let s = "user=pass_user dbname=postgres host=host1,host2 hostaddr=127.0.0.1,127.0.0.2 port=26257 min_protocol_version=3.0 max_protocol_version=latest";
         let config = s.parse::<Config>().unwrap();
         assert_eq!(Some("pass_user"), config.get_user());
         assert_eq!(Some("postgres"), config.get_dbname());
@@ -1198,7 +1233,10 @@ mod tests {
             config.get_hostaddrs(),
         );
 
-        assert_eq!(1, 1);
+        assert_eq!(
+            config.protocol_version,
+            ProtocolVersion::V3_0..=ProtocolVersion::V3_2
+        );
     }
 
     #[test]
