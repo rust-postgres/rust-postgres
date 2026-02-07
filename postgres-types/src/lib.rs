@@ -873,6 +873,8 @@ pub enum IsNull {
 /// | `bit_vec::BitVec`               | BIT, VARBIT                         |
 /// | `eui48::MacAddress`             | MACADDR                             |
 ///
+/// For NUMERIC type, you can use third-party crate like [rust_decimal](https://crates.io/crates/rust_decimal).
+///
 /// # Nullability
 ///
 /// In addition to the types listed above, `ToSql` is implemented for
