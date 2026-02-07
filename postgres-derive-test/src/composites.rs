@@ -346,3 +346,32 @@ fn generics() {
         },
     );
 }
+
+#[test]
+fn struct_with_borrowed_fields() {
+    #[derive(FromSql, ToSql, Debug, PartialEq)]
+    #[postgres(name = "item")]
+    struct Item<'a, 'b: 'a> {
+        name: &'a str,
+        data: &'b [u8],
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.batch_execute(
+        "CREATE TYPE pg_temp.item AS (
+            name TEXT,
+            data BYTEA
+        );",
+    )
+    .unwrap();
+
+    let item = Item {
+        name: "foobar",
+        data: b"12345",
+    };
+
+    let row = conn.query_one("SELECT $1::item", &[&item]).unwrap();
+    let result: Item<'_, '_> = row.get(0);
+    assert_eq!(item.name, result.name);
+    assert_eq!(item.data, result.data);
+}

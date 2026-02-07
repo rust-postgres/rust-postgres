@@ -11,8 +11,10 @@ mod case;
 mod composites;
 mod enums;
 mod fromsql;
+mod lifetimes;
 mod overrides;
 mod tosql;
+mod transparent;
 
 #[proc_macro_derive(ToSql, attributes(postgres))]
 pub fn derive_tosql(input: TokenStream) -> TokenStream {

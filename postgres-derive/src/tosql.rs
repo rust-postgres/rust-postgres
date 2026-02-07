@@ -7,7 +7,7 @@ use syn::{
 };
 
 use crate::accepts;
-use crate::composites::Field;
+use crate::composites::NamedField;
 use crate::composites::{append_generic_bound, new_derive_path};
 use crate::enums::Variant;
 use crate::overrides::Overrides;
@@ -92,7 +92,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                 let fields = fields
                     .named
                     .iter()
-                    .map(|field| Field::parse(field, overrides.rename_all))
+                    .map(|field| NamedField::parse(field, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
                     accepts::composite_body(&name, "ToSql", &fields),
@@ -168,7 +168,7 @@ fn domain_body() -> TokenStream {
     }
 }
 
-fn composite_body(fields: &[Field]) -> TokenStream {
+fn composite_body(fields: &[NamedField]) -> TokenStream {
     let field_names = fields.iter().map(|f| &f.name);
     let field_idents = fields.iter().map(|f| &f.ident);
 

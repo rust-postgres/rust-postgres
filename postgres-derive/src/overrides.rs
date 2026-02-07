@@ -8,6 +8,7 @@ pub struct Overrides {
     pub rename_all: Option<RenameRule>,
     pub transparent: bool,
     pub allow_mismatch: bool,
+    pub borrows: bool,
 }
 
 impl Overrides {
@@ -17,6 +18,7 @@ impl Overrides {
             rename_all: None,
             transparent: false,
             allow_mismatch: false,
+            borrows: false,
         };
 
         for attr in attrs {
@@ -92,6 +94,14 @@ impl Overrides {
                                 ));
                             }
                             overrides.allow_mismatch = true;
+                        } else if path.is_ident("borrow") {
+                            if container_attr {
+                                return Err(Error::new_spanned(
+                                    path,
+                                    "#[postgres(borrow)] is a field attribute",
+                                ));
+                            }
+                            overrides.borrows = true;
                         } else {
                             return Err(Error::new_spanned(path, "unknown override"));
                         }

@@ -1,6 +1,8 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
+use std::collections::BTreeSet;
 use std::iter;
+use std::iter::FromIterator;
 use syn::{
     punctuated::Punctuated, token, AngleBracketedGenericArguments, Data, DataStruct, DeriveInput,
     Error, Fields, GenericArgument, GenericParam, Generics, Ident, Lifetime, PathArguments,
@@ -9,10 +11,11 @@ use syn::{
 use syn::{LifetimeParam, TraitBound, TraitBoundModifier, TypeParamBound};
 
 use crate::accepts;
-use crate::composites::Field;
+use crate::composites::NamedField;
 use crate::composites::{append_generic_bound, new_derive_path};
 use crate::enums::Variant;
 use crate::overrides::Overrides;
+use crate::transparent::UnnamedField;
 
 pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs, true)?;
@@ -29,16 +32,18 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
         .clone()
         .unwrap_or_else(|| input.ident.to_string());
 
-    let (accepts_body, to_sql_body) = if overrides.transparent {
+    let (accepts_body, to_sql_body, borrowed_lifetimes) = if overrides.transparent {
         match input.data {
             Data::Struct(DataStruct {
                 fields: Fields::Unnamed(ref fields),
                 ..
             }) if fields.unnamed.len() == 1 => {
                 let field = fields.unnamed.first().unwrap();
+                let parsed_field = UnnamedField::parse(field)?;
                 (
                     accepts::transparent_body(field),
                     transparent_body(&input.ident, field),
+                    parsed_field.borrowed_lifetimes,
                 )
             }
             _ => {
@@ -59,6 +64,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
                 (
                     accepts::enum_body(&name, &variants, overrides.allow_mismatch),
                     enum_body(&input.ident, &variants),
+                    vec![],
                 )
             }
             _ => {
@@ -79,6 +85,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
             (
                 accepts::enum_body(&name, &variants, overrides.allow_mismatch),
                 enum_body(&input.ident, &variants),
+                vec![],
             )
         }
         Data::Struct(DataStruct {
@@ -86,9 +93,11 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
             ..
         }) if fields.unnamed.len() == 1 => {
             let field = fields.unnamed.first().unwrap();
+            let parsed_field = UnnamedField::parse(field)?;
             (
                 domain_accepts_body(&name, field),
                 domain_body(&input.ident, field),
+                parsed_field.borrowed_lifetimes,
             )
         }
         Data::Struct(DataStruct {
@@ -98,11 +107,16 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
             let fields = fields
                 .named
                 .iter()
-                .map(|field| Field::parse(field, overrides.rename_all))
+                .map(|field| NamedField::parse(field, overrides.rename_all))
                 .collect::<Result<Vec<_>, _>>()?;
+            let borrowed_lifetimes: Vec<_> = fields
+                .iter()
+                .flat_map(|f| f.borrowed_lifetimes.to_owned())
+                .collect();
             (
                 accepts::composite_body(&name, "FromSql", &fields),
                 composite_body(&input.ident, &fields),
+                borrowed_lifetimes
             )
         }
         _ => {
@@ -115,7 +129,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     };
 
     let ident = &input.ident;
-    let (generics, lifetime) = build_generics(&input.generics);
+    let (generics, lifetime) = build_generics(&input.generics, borrowed_lifetimes);
     let (impl_generics, _, _) = generics.split_for_impl();
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
     let out = quote! {
@@ -186,7 +200,7 @@ fn domain_body(ident: &Ident, field: &syn::Field) -> TokenStream {
     }
 }
 
-fn composite_body(ident: &Ident, fields: &[Field]) -> TokenStream {
+fn composite_body(ident: &Ident, fields: &[NamedField]) -> TokenStream {
     let temp_vars = &fields
         .iter()
         .map(|f| format_ident!("__{}", f.ident))
@@ -236,16 +250,18 @@ fn composite_body(ident: &Ident, fields: &[Field]) -> TokenStream {
     }
 }
 
-fn build_generics(source: &Generics) -> (Generics, Lifetime) {
-    // don't worry about lifetime name collisions, it doesn't make sense to derive FromSql on a struct with a lifetime
-    let lifetime = Lifetime::new("'a", Span::call_site());
-
+fn build_generics(
+    source: &Generics,
+    borrowed_lifetimes: Vec<Lifetime>,
+) -> (Generics, Lifetime) {
+    // This is the same parent lifetime name serde uses
+    let lifetime = Lifetime::new("'de", Span::call_site());
+    // Sort lifetimes for deterministic code-gen
+    let sorted_lifetimes = BTreeSet::from_iter(borrowed_lifetimes);
+    let mut lifetime_param = LifetimeParam::new(lifetime.to_owned());
+    lifetime_param.bounds.extend(sorted_lifetimes);
     let mut out = append_generic_bound(source.to_owned(), &new_fromsql_bound(&lifetime));
-    out.params.insert(
-        0,
-        GenericParam::Lifetime(LifetimeParam::new(lifetime.to_owned())),
-    );
-
+    out.params.insert(0, GenericParam::Lifetime(lifetime_param));
     (out, lifetime)
 }
 
