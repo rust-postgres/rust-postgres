@@ -740,6 +740,16 @@ impl<'a> FromSql<'a> for &'a str {
     }
 }
 
+impl<'a> FromSql<'a> for Cow<'a, str> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Cow<'a, str>, Box<dyn Error + Sync + Send>> {
+        <&str as FromSql>::from_sql(ty, raw).map(Cow::Borrowed)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        <&str as FromSql>::accepts(ty)
+    }
+}
+
 macro_rules! simple_from {
     ($t:ty, $f:ident, $($expected:ident),+) => {
         impl<'a> FromSql<'a> for $t {
