@@ -282,7 +282,7 @@ where
             }
         }
     };
-    return Err(Error::authentication("unsupported SASL mechanism".into()));
+    Err(Error::authentication("unsupported SASL mechanism".into()))
 }
 
 async fn authenticate_scram<S, T>(
@@ -385,7 +385,7 @@ where
         token_provider
             .get_token()
             .await
-            .map_err(|err| Error::authentication(err))?
+            .map_err(Error::authentication)?
     } else {
         return Err(Error::config("token_provider missing".into()));
     };

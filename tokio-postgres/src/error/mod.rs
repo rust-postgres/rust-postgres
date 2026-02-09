@@ -515,10 +515,7 @@ impl Error {
     }
 
     pub(crate) fn is_config_error(&self) -> bool {
-        match self.0.kind {
-            Kind::Config => true,
-            _ => false,
-        }
+        matches!(self.0.kind, Kind::Config)
     }
 
     #[doc(hidden)]

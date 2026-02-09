@@ -105,6 +105,7 @@ pub enum Host {
 /// provides token to be used to authenticate connections with  OAuth2
 #[derive(Clone)]
 pub struct TokenProvider(
+    #[allow(clippy::type_complexity)]
     Arc<
         dyn Fn() -> BoxFuture<'static, Result<String, Box<dyn error::Error + Sync + Send>>>
             + Send
