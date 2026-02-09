@@ -13,6 +13,7 @@ use crate::tls::TlsConnect;
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{Client, Connection, Error};
+use futures_util::future::BoxFuture;
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
@@ -24,6 +25,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{error, fmt, iter, mem};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -100,6 +102,33 @@ pub enum Host {
     Unix(PathBuf),
 }
 
+/// provides token to be used to authenticate connections with  OAuth2
+#[derive(Clone)]
+pub struct TokenProvider(
+    #[allow(clippy::type_complexity)]
+    Arc<
+        dyn Fn() -> BoxFuture<'static, Result<String, Box<dyn error::Error + Sync + Send>>>
+            + Send
+            + Sync,
+    >,
+);
+impl Eq for TokenProvider {}
+
+impl PartialEq for TokenProvider {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl TokenProvider {
+    /// gets the OAuth2 token
+    pub fn get_token(
+        &self,
+    ) -> BoxFuture<'static, Result<String, Box<dyn error::Error + Sync + Send>>> {
+        (self.0)()
+    }
+}
+
 /// Connection configuration.
 ///
 /// Configuration can be parsed from libpq-style connection strings. These strings come in two formats:
@@ -172,7 +201,7 @@ pub enum Host {
 ///     `disable`, hosts and addresses will be tried in the order provided. If set to `random`, hosts will be tried
 ///     in a random order, and the IP addresses resolved from a hostname will also be tried in a random order. Defaults
 ///     to `disable`.
-///
+/// * `token_provider` - provider that provide tokens for the oauth2 authentication. Can't be set by keys or url. Must be provided
 /// ## Examples
 ///
 /// ```not_rust
@@ -235,6 +264,7 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
+    pub(crate) token_provider: Option<TokenProvider>,
 }
 
 impl Default for Config {
@@ -269,6 +299,7 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
+            token_provider: None,
         }
     }
 
@@ -562,6 +593,23 @@ impl Config {
     /// Gets the host load balancing behavior.
     pub fn get_load_balance_hosts(&self) -> LoadBalanceHosts {
         self.load_balance_hosts
+    }
+
+    /// Get the token provider
+    pub fn get_token_provider(&self) -> Option<&TokenProvider> {
+        self.token_provider.as_ref()
+    }
+
+    /// Sets a token provider
+    pub fn token_providcer<F>(&mut self, provider: F) -> &mut Config
+    where
+        F: Fn() -> BoxFuture<'static, Result<String, Box<dyn error::Error + Sync + Send>>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.token_provider = Some(TokenProvider(Arc::new(provider)));
+        self
     }
 
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {

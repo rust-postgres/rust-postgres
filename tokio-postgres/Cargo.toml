@@ -52,7 +52,7 @@ bytes = "1.11"
 byteorder = "1.0"
 fallible-iterator = "0.2"
 futures-channel = { version = "0.3", features = ["sink"] }
-futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "alloc"] }
 log = "0.4"
 parking_lot = "0.12"
 percent-encoding = "2.0"
