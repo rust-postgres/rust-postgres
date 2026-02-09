@@ -19,6 +19,8 @@ const NONCE_LENGTH: usize = 24;
 pub const SCRAM_SHA_256: &str = "SCRAM-SHA-256";
 /// The identifier of the SCRAM-SHA-256-PLUS SASL authentication mechanism.
 pub const SCRAM_SHA_256_PLUS: &str = "SCRAM-SHA-256-PLUS";
+/// The identifuer of the OAUTHBEARER SASL authentication mechanism.
+pub const OAUTHBEARER: &str = "OAUTHBEARER";
 
 // since postgres passwords are not required to exclude saslprep-prohibited
 // characters or even be valid UTF8, we run saslprep if possible and otherwise
@@ -112,6 +114,38 @@ enum State {
     Done,
 }
 
+/// A type which handles the client side of the SCRAM-SHA-256/SCRAM-SHA-256-PLUS authentication
+/// process.
+///
+/// During the authentication process, if the backend sends an `AuthenticationSASL` message which
+/// includes `OAUTHBEARER` as an authentication mechanism, this type can be used.
+///
+/// After a `OAuthBearer` is constructed, the buffer returned by the `message()` method should be
+/// sent to the backend in a `SASLInitialResponse` message along with the mechanism name.
+///
+/// The server will reply with an `AuthenticationOk` message.
+pub struct OAuthBearer {
+    message: String,
+}
+
+impl OAuthBearer {
+    /// Constructs a new instance which will use the provided token for authentication.
+    pub fn new(token: &str, channel_binding: ChannelBinding) -> Self {
+        // RFC7628
+        let message = format!(
+            "{}\x01auth=Bearer {}\x01\x01",
+            channel_binding.gs2_header(),
+            token
+        );
+
+        Self { message }
+    }
+
+    /// Returns the message which should be sent to the backend in an `SASLResponse` message.
+    pub fn message(&self) -> &[u8] {
+        self.message.as_bytes()
+    }
+}
 /// A type which handles the client side of the SCRAM-SHA-256/SCRAM-SHA-256-PLUS authentication
 /// process.
 ///

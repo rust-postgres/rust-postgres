@@ -514,6 +514,13 @@ impl Error {
         Error::new(Kind::Connect, Some(Box::new(e)))
     }
 
+    pub(crate) fn is_config_error(&self) -> bool {
+        match self.0.kind {
+            Kind::Config => true,
+            _ => false,
+        }
+    }
+
     #[doc(hidden)]
     pub fn __private_api_timeout() -> Error {
         Error::new(Kind::Timeout, None)

@@ -9,13 +9,12 @@ use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{Sink, SinkExt, Stream, TryStreamExt};
 use postgres_protocol::authentication;
-use postgres_protocol::authentication::sasl;
-use postgres_protocol::authentication::sasl::ScramSha256;
+use postgres_protocol::authentication::sasl::{self, OAuthBearer, ScramSha256};
 use postgres_protocol::message::backend::{AuthenticationSaslBody, Message};
 use postgres_protocol::message::frontend;
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
-use std::io;
+use std::io::{self};
 use std::pin::Pin;
 use std::task::{ready, Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -250,21 +249,56 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsStream + Unpin,
 {
-    let password = config
-        .password
-        .as_ref()
-        .ok_or_else(|| Error::config("password missing".into()))?;
-
     let mut has_scram = false;
     let mut has_scram_plus = false;
+    let mut has_oauth = false;
     let mut mechanisms = body.mechanisms();
     while let Some(mechanism) = mechanisms.next().map_err(Error::parse)? {
         match mechanism {
             sasl::SCRAM_SHA_256 => has_scram = true,
             sasl::SCRAM_SHA_256_PLUS => has_scram_plus = true,
+            sasl::OAUTHBEARER => has_oauth = true,
             _ => {}
         }
     }
+    if has_scram || has_scram_plus {
+        match authenticate_scram(stream, has_scram, has_scram_plus, config).await {
+            Ok(_) => return Ok(()),
+            Err(err) => {
+                if !err.is_config_error() {
+                    return Err(err);
+                }
+            }
+        }
+    };
+
+    if has_oauth {
+        match authenticate_oauthbearer(stream, config).await {
+            Ok(_) => return Ok(()),
+            Err(err) => {
+                if !err.is_config_error() {
+                    return Err(err);
+                }
+            }
+        }
+    };
+    return Err(Error::authentication("unsupported SASL mechanism".into()));
+}
+
+async fn authenticate_scram<S, T>(
+    stream: &mut StartupStream<S, T>,
+    has_scram: bool,
+    has_scram_plus: bool,
+    config: &Config,
+) -> Result<(), Error>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    T: TlsStream + Unpin,
+{
+    let password = config
+        .password
+        .as_ref()
+        .ok_or_else(|| Error::config("password missing".into()))?;
 
     let channel_binding = stream
         .inner
@@ -291,7 +325,6 @@ where
     if mechanism != sasl::SCRAM_SHA_256_PLUS {
         can_skip_channel_binding(config)?;
     }
-
     let mut scram = ScramSha256::new(password, channel_binding);
 
     let mut buf = BytesMut::new();
@@ -331,6 +364,49 @@ where
         .map_err(|e| Error::authentication(e.into()))?;
 
     Ok(())
+}
+
+async fn authenticate_oauthbearer<S, T>(
+    stream: &mut StartupStream<S, T>,
+    config: &Config,
+) -> Result<(), Error>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    T: TlsStream + Unpin,
+{
+    // Sanity check to avoid leaking tokens if stream is unencrypted
+    if matches!(stream.inner.get_ref(), MaybeTlsStream::Raw(_)) {
+        return Err(Error::authentication(
+            "OAUTHBEARER authentication requires a TLS connection".into(),
+        ));
+    }
+
+    let token = if let Some(token_provider) = config.token_provider.as_ref() {
+        token_provider
+            .get_token()
+            .await
+            .map_err(|err| Error::authentication(err))?
+    } else {
+        return Err(Error::config("token_provider missing".into()));
+    };
+
+    let channel_binding = sasl::ChannelBinding::unsupported();
+    let oauthbearer = OAuthBearer::new(&token, channel_binding);
+    let mut buf = BytesMut::new();
+
+    frontend::sasl_initial_response(sasl::OAUTHBEARER, oauthbearer.message(), &mut buf)
+        .map_err(Error::encode)?;
+    stream
+        .send(FrontendMessage::Raw(buf.freeze()))
+        .await
+        .map_err(Error::io)?;
+
+    match stream.try_next().await.map_err(Error::io)? {
+        Some(Message::AuthenticationOk) => Ok(()),
+        Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
+        Some(_) => Err(Error::unexpected_message()),
+        None => Err(Error::closed()),
+    }
 }
 
 async fn read_info<S, T>(
