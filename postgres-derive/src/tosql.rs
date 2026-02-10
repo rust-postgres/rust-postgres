@@ -95,7 +95,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                     .map(|field| Field::parse(field, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    accepts::composite_body(&name, "ToSql", &fields),
+                    accepts::composite_body_to_sql(&name, &fields),
                     composite_body(&fields),
                 )
             }

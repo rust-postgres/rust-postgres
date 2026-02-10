@@ -7,6 +7,7 @@ use std::fmt;
 mod composites;
 mod domains;
 mod enums;
+mod records;
 mod transparent;
 
 pub fn test_type<T, S>(conn: &mut Client, sql_type: &str, checks: &[(T, S)])
