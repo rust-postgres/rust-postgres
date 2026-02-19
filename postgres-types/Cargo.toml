@@ -18,9 +18,9 @@ js = ["postgres-protocol/js"]
 with-bit-vec-0_6 = ["bit-vec-06"]
 with-bit-vec-0_7 = ["bit-vec-07"]
 with-bit-vec-0_8 = ["bit-vec-08"]
+with-chrono-0_4 = ["chrono-04"]
 with-cidr-0_2 = ["cidr-02"]
 with-cidr-0_3 = ["cidr-03"]
-with-chrono-0_4 = ["chrono-04"]
 with-eui48-0_4 = ["eui48-04"]
 with-eui48-1 = ["eui48-1"]
 with-geo-types-0_6 = ["geo-types-06"]
@@ -29,10 +29,12 @@ with-jiff-0_1 = ["jiff-01"]
 with-jiff-0_2 = ["jiff-02"]
 with-serde_json-1 = ["serde-1", "serde_json-1"]
 with-smol_str-01 = ["smol_str-01"]
-with-uuid-0_8 = ["uuid-08"]
-with-uuid-1 = ["uuid-1"]
+with-smol_str-02 = ["smol_str-02"]
+with-smol_str-03 = ["smol_str-03"]
 with-time-0_2 = ["time-02"]
 with-time-0_3 = ["time-03"]
+with-uuid-0_8 = ["uuid-08"]
+with-uuid-1 = ["uuid-1"]
 
 [dependencies]
 bytes = "1.11"
@@ -63,4 +65,6 @@ uuid-08 = { version = "0.8", package = "uuid", optional = true }
 uuid-1 = { version = "1.0", package = "uuid", optional = true }
 time-02 = { version = "0.2.7", package = "time", optional = true }
 time-03 = { version = "0.3.5", package = "time", default-features = false, optional = true }
-smol_str-01 = { version = "0.1.23", package = "smol_str", default-features = false, optional = true }
+smol_str-01 = { version = "0.1.24", package = "smol_str", default-features = false, optional = true }
+smol_str-02 = { version = "0.2", package = "smol_str", default-features = false, optional = true }
+smol_str-03 = { version = "0.3", package = "smol_str", default-features = false, optional = true }

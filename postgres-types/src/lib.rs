@@ -181,6 +181,16 @@
 //!    Meh,
 //! }
 //! ```
+//! 
+//! # Features
+//! 
+//! These are the features specific to postgres-types you can enable in 'Cargo.toml':
+//! 
+//! | Feature | Description | Extra dependencies | Default |
+//! | ------- | ----------- | ------------------ | ------- |
+//! | `derive` | Macros to add ToSql and FromSql for custom types | [postgres-derive](https://crates.io/crates/postgres-derive) 0.4  | no |
+//! 
+#![doc = include_str!("../feature_docs.md")]
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::types::{self, ArrayDimension};
@@ -290,6 +300,10 @@ mod jiff_02;
 mod serde_json_1;
 #[cfg(feature = "with-smol_str-01")]
 mod smol_str_01;
+#[cfg(feature = "with-smol_str-02")]
+mod smol_str_02;
+#[cfg(feature = "with-smol_str-03")]
+mod smol_str_03;
 #[cfg(feature = "with-time-0_2")]
 mod time_02;
 #[cfg(feature = "with-time-0_3")]
