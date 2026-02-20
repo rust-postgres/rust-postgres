@@ -98,6 +98,11 @@ pub enum Host {
     /// This variant is only available on Unix platforms.
     #[cfg(unix)]
     Unix(PathBuf),
+    /// The name of an abstract Unix socket.
+    ///
+    /// This variant is only available on Linux.
+    #[cfg(target_os = "linux")]
+    AbstractSocket(String),
 }
 
 /// Connection configuration.
@@ -380,6 +385,13 @@ impl Config {
             }
         }
 
+        #[cfg(target_os = "linux")]
+        {
+            if host.starts_with('@') {
+                return self.host_abstract(host);
+            }
+        }
+
         self.host.push(Host::Tcp(host));
         self
     }
@@ -403,6 +415,16 @@ impl Config {
         T: AsRef<Path>,
     {
         self.host.push(Host::Unix(host.as_ref().to_path_buf()));
+        self
+    }
+
+    /// Adds an abstract socket host to the configuration.
+    #[cfg(unix)]
+    pub fn host_abstract<T>(&mut self, host: T) -> &mut Config
+    where
+        T: Into<String>,
+    {
+        self.host.push(Host::AbstractSocket(host.into()));
         self
     }
 
@@ -1149,6 +1171,9 @@ impl<'a> UrlParser<'a> {
         let decoded = Cow::from(percent_encoding::percent_decode(s.as_bytes()));
         if decoded.first() == Some(&b'/') {
             self.config.host_path(OsStr::from_bytes(&decoded));
+        } else if decoded.first() == Some(&b'@') {
+            let decoded = str::from_utf8(&decoded).map_err(|e| Error::config_parse(Box::new(e)))?;
+            self.config.host_abstract(decoded);
         } else {
             let decoded = str::from_utf8(&decoded).map_err(|e| Error::config_parse(Box::new(e)))?;
             self.config.host(decoded);

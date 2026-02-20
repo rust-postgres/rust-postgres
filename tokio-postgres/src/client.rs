@@ -167,11 +167,13 @@ pub(crate) struct SocketConfig {
 }
 
 #[cfg(feature = "runtime")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum Addr {
     Tcp(IpAddr),
     #[cfg(unix)]
     Unix(PathBuf),
+    #[cfg(target_os = "linux")]
+    AbstractSocket(String),
 }
 
 /// An asynchronous PostgreSQL client.

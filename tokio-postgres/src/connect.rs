@@ -66,6 +66,7 @@ where
             // postgres doesn't support TLS over unix sockets, so the choice here doesn't matter
             #[cfg(unix)]
             Some(Host::Unix(_)) => None,
+            Some(Host::AbstractSocket(_)) => None,
             None => None,
         };
 
@@ -129,6 +130,17 @@ where
         #[cfg(unix)]
         Host::Unix(path) => {
             connect_once(Addr::Unix(path), hostname.as_deref(), port, tls, config).await
+        }
+        #[cfg(target_os = "linux")]
+        Host::AbstractSocket(path) => {
+            connect_once(
+                Addr::AbstractSocket(path),
+                hostname.as_deref(),
+                port,
+                tls,
+                config,
+            )
+            .await
         }
     }
 }
