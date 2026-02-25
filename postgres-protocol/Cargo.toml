@@ -21,7 +21,7 @@ fallible-iterator = "0.2"
 hmac = "0.12"
 md-5 = "0.10"
 memchr = "2.0"
-rand = "0.9"
+rand = "0.10"
 sha2 = "0.10"
 stringprep = "0.1"
-getrandom = { version = "0.3", optional = true }
+getrandom = { version = "0.4", optional = true }
