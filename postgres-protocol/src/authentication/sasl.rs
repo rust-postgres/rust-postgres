@@ -4,7 +4,7 @@ use base64::display::Base64Display;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use hmac::{Hmac, Mac};
-use rand::{self, Rng};
+use rand::{self, RngExt};
 use sha2::digest::FixedOutput;
 use sha2::{Digest, Sha256};
 use std::fmt::Write;

@@ -11,7 +11,7 @@ use base64::display::Base64Display;
 use base64::engine::general_purpose::STANDARD;
 use hmac::{Hmac, Mac};
 use md5::Md5;
-use rand::RngCore;
+use rand::Rng;
 use sha2::digest::FixedOutput;
 use sha2::{Digest, Sha256};
 
