@@ -17,7 +17,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::pin::Pin;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 
@@ -200,7 +200,7 @@ where
         | Some(Message::AuthenticationSspi) => {
             return Err(Error::authentication(
                 "unsupported authentication method".into(),
-            ))
+            ));
         }
         Some(Message::ErrorResponse(body)) => return Err(Error::db(body)),
         Some(_) => return Err(Error::unexpected_message()),

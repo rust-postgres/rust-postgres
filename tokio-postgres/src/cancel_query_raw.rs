@@ -1,6 +1,6 @@
 use crate::config::{SslMode, SslNegotiation};
 use crate::tls::TlsConnect;
-use crate::{connect_tls, Error};
+use crate::{Error, connect_tls};
 use bytes::BytesMut;
 use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};

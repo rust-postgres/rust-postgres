@@ -2,11 +2,11 @@
 
 use bytes::{Bytes, BytesMut};
 use futures_channel::mpsc;
-use futures_util::{join, stream, try_join, FutureExt, SinkExt, StreamExt, TryStreamExt};
+use futures_util::{FutureExt, SinkExt, StreamExt, TryStreamExt, join, stream, try_join};
 use pin_project_lite::pin_project;
 use std::fmt::Write;
 use std::future::{self, Future};
-use std::pin::{pin, Pin};
+use std::pin::{Pin, pin};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::net::TcpStream;
@@ -1065,11 +1065,13 @@ async fn query_opt() {
         .await
         .unwrap();
 
-    assert!(client
-        .query_opt("SELECT * FROM foo WHERE name = 'dave'", &[])
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        client
+            .query_opt("SELECT * FROM foo WHERE name = 'dave'", &[])
+            .await
+            .unwrap()
+            .is_none()
+    );
     client
         .query_opt("SELECT * FROM foo WHERE name = 'alice'", &[])
         .await
@@ -1113,14 +1115,16 @@ async fn query_typed_opt() {
     assert_eq!(row.get::<_, i32>(1), 20);
 
     // dave doesn't exist, hence should return no row
-    assert!(client
-        .query_typed_opt(
-            "SELECT * FROM foo WHERE name = $1",
-            &[(&"dave", Type::TEXT)]
-        )
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        client
+            .query_typed_opt(
+                "SELECT * FROM foo WHERE name = $1",
+                &[(&"dave", Type::TEXT)]
+            )
+            .await
+            .unwrap()
+            .is_none()
+    );
 
     // should return error if the number of rows returned is not exactly one or zero
     client
@@ -1130,14 +1134,16 @@ async fn query_typed_opt() {
         .unwrap();
 
     // should be none because no row is returned
-    assert!(client
-        .query_typed_opt(
-            "INSERT INTO foo (name, age) VALUES ($1, $2)",
-            &[(&"dave", Type::TEXT), (&45i32, Type::INT4)],
-        )
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        client
+            .query_typed_opt(
+                "INSERT INTO foo (name, age) VALUES ($1, $2)",
+                &[(&"dave", Type::TEXT), (&45i32, Type::INT4)],
+            )
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -1318,9 +1324,11 @@ async fn query_scalar() {
         .query_scalar::<Vec<i32>, _>("SELECT name, age FROM person", &[])
         .await
         .unwrap_err();
-    assert!(error
-        .to_string()
-        .contains("query returned an unexpected number of columns"));
+    assert!(
+        error
+            .to_string()
+            .contains("query returned an unexpected number of columns")
+    );
 
     let ages: Vec<Option<i32>> = client
         .query_scalar("SELECT age FROM person", &[])

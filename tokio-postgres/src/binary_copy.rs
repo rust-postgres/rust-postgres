@@ -1,7 +1,7 @@
 //! Utilities for working with the PostgreSQL binary copy format.
 
 use crate::types::{FromSql, IsNull, ToSql, Type, WrongType};
-use crate::{slice_iter, CopyInSink, CopyOutStream, Error};
+use crate::{CopyInSink, CopyOutStream, Error, slice_iter};
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures_util::{SinkExt, Stream};
@@ -12,7 +12,7 @@ use std::io::Cursor;
 use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 
 const MAGIC: &[u8] = b"PGCOPY\n\xff\r\n\0";
 const HEADER_LEN: usize = MAGIC.len() + 4 + 4;

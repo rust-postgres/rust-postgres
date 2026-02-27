@@ -1,7 +1,7 @@
+use crate::Statement;
 use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::Statement;
 use postgres_protocol::message::frontend;
 use std::sync::{Arc, Weak};
 

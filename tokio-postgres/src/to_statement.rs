@@ -1,10 +1,10 @@
-use crate::to_statement::private::{Sealed, ToStatementType};
 use crate::Statement;
+use crate::to_statement::private::{Sealed, ToStatementType};
 
 mod private {
     use std::sync::Arc;
 
-    use crate::{client::InnerClient, prepare, Error, Statement};
+    use crate::{Error, Statement, client::InnerClient, prepare};
 
     pub trait Sealed {}
 

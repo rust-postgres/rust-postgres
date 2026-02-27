@@ -8,7 +8,7 @@ use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str;
 
-use crate::{write_nullable, FromUsize, IsNull, Lsn, Oid};
+use crate::{FromUsize, IsNull, Lsn, Oid, write_nullable};
 
 #[cfg(test)]
 mod test;

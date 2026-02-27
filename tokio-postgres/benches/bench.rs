@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use futures_channel::oneshot;
 use std::sync::Arc;
 use std::time::Instant;

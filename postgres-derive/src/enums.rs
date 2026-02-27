@@ -15,7 +15,7 @@ impl Variant {
                 return Err(Error::new_spanned(
                     raw,
                     "non-C-like enums are not supported",
-                ))
+                ));
             }
         }
         let overrides = Overrides::extract(&raw.attrs, false)?;

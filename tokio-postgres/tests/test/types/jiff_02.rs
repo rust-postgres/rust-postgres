@@ -1,11 +1,11 @@
 use jiff_02::{
-    civil::{Date as JiffDate, DateTime, Time},
     Timestamp as JiffTimestamp,
+    civil::{Date as JiffDate, DateTime, Time},
 };
 use std::fmt;
 use tokio_postgres::{
-    types::{Date, FromSqlOwned, Timestamp},
     Client,
+    types::{Date, FromSqlOwned, Timestamp},
 };
 
 use crate::connect;

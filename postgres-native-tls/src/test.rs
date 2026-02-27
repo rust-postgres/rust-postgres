@@ -5,7 +5,7 @@ use tokio_postgres::tls::TlsConnect;
 
 #[cfg(feature = "runtime")]
 use crate::MakeTlsConnector;
-use crate::{set_postgresql_alpn, TlsConnector};
+use crate::{TlsConnector, set_postgresql_alpn};
 
 async fn smoke_test<T>(s: &str, tls: T)
 where

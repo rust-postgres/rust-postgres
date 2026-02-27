@@ -1,3 +1,5 @@
+#[cfg(feature = "runtime")]
+use crate::Socket;
 use crate::codec::{BackendMessages, FrontendMessage};
 use crate::config::{SslMode, SslNegotiation};
 use crate::connection::{Request, RequestMessages};
@@ -10,11 +12,9 @@ use crate::simple_query::SimpleQueryStream;
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::types::{Oid, ToSql, Type};
-#[cfg(feature = "runtime")]
-use crate::Socket;
 use crate::{
-    copy_in, copy_out, prepare, query, simple_query, slice_iter, CancelToken, CopyInSink, Error,
-    Row, SimpleQueryMessage, Statement, ToStatement, Transaction, TransactionBuilder,
+    CancelToken, CopyInSink, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
+    TransactionBuilder, copy_in, copy_out, prepare, query, simple_query, slice_iter,
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
@@ -33,7 +33,7 @@ use std::net::IpAddr;
 use std::path::PathBuf;
 use std::pin::pin;
 use std::sync::Arc;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};

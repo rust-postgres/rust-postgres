@@ -1,7 +1,7 @@
 use proc_macro2::Span;
 use syn::{
-    punctuated::Punctuated, Error, GenericParam, Generics, Ident, Path, PathSegment, Type,
-    TypeParamBound,
+    Error, GenericParam, Generics, Ident, Path, PathSegment, Type, TypeParamBound,
+    punctuated::Punctuated,
 };
 
 use crate::{case::RenameRule, overrides::Overrides};

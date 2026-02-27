@@ -1,8 +1,8 @@
+use crate::Error;
 use crate::config::{SslMode, SslNegotiation};
 use crate::maybe_tls_stream::MaybeTlsStream;
-use crate::tls::private::ForcePrivateApi;
 use crate::tls::TlsConnect;
-use crate::Error;
+use crate::tls::private::ForcePrivateApi;
 use bytes::BytesMut;
 use postgres_protocol::message::frontend;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -21,7 +21,7 @@ where
     match mode {
         SslMode::Disable => return Ok(MaybeTlsStream::Raw(stream)),
         SslMode::Prefer if !tls.can_connect(ForcePrivateApi) => {
-            return Ok(MaybeTlsStream::Raw(stream))
+            return Ok(MaybeTlsStream::Raw(stream));
         }
         SslMode::Prefer if negotiation == SslNegotiation::Direct => return Err(Error::tls(
             "weak sslmode \"prefer\" may not be used with sslnegotiation=direct (use \"require\")"

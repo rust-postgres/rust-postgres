@@ -1,8 +1,8 @@
 use crate::config::{SslMode, SslNegotiation};
 use crate::tls::TlsConnect;
+use crate::{Error, cancel_query_raw};
 #[cfg(feature = "runtime")]
-use crate::{cancel_query, client::SocketConfig, tls::MakeTlsConnect, Socket};
-use crate::{cancel_query_raw, Error};
+use crate::{Socket, cancel_query, client::SocketConfig, tls::MakeTlsConnect};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 /// The capability to request cancellation of in-progress queries on a

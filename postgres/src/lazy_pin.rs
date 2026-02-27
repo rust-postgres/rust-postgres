@@ -19,10 +19,6 @@ impl<T> LazyPin<T> {
     }
 
     pub fn into_unpinned(self) -> Option<T> {
-        if self.pinned {
-            None
-        } else {
-            Some(*self.value)
-        }
+        if self.pinned { None } else { Some(*self.value) }
     }
 }

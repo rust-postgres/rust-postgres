@@ -3,13 +3,13 @@ use futures_util::Stream;
 use std::collections::VecDeque;
 use std::future::{self, Future};
 use std::ops::{Deref, DerefMut};
-use std::pin::{pin, Pin};
+use std::pin::{Pin, pin};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::runtime::Runtime;
-use tokio_postgres::error::DbError;
 use tokio_postgres::AsyncMessage;
+use tokio_postgres::error::DbError;
 
 pub struct Connection {
     runtime: Runtime,

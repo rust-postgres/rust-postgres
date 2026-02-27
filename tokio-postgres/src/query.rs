@@ -7,7 +7,7 @@ use crate::{Column, Error, Portal, Row, Statement};
 use bytes::{Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_util::Stream;
-use log::{debug, log_enabled, Level};
+use log::{Level, debug, log_enabled};
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
@@ -15,7 +15,7 @@ use postgres_types::Type;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 
 struct BorrowToSqlParamsDebug<'a, T>(&'a [T]);
 
@@ -349,7 +349,7 @@ impl Stream for RowStream {
         loop {
             match ready!(this.responses.poll_next(cx)?) {
                 Message::DataRow(body) => {
-                    return Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)))
+                    return Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)));
                 }
                 Message::CommandComplete(body) => {
                     *this.rows_affected = Some(extract_row_affected(&body)?);
