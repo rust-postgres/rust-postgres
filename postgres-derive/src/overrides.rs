@@ -1,7 +1,6 @@
-use syn::punctuated::Punctuated;
-use syn::{Attribute, Error, Expr, ExprLit, Lit, Meta, Token};
+use syn::{Attribute, Error, Expr, ExprLit, Lit, Meta, Token, punctuated::Punctuated};
 
-use crate::case::{RenameRule, RENAME_RULES};
+use crate::case::{RENAME_RULES, RenameRule};
 
 pub struct Overrides {
     pub name: Option<String>,
@@ -25,7 +24,7 @@ impl Overrides {
             }
 
             let list = match &attr.meta {
-                Meta::List(ref list) => list,
+                Meta::List(list) => list,
                 bad => return Err(Error::new_spanned(bad, "expected a #[postgres(...)]")),
             };
 
@@ -51,7 +50,7 @@ impl Overrides {
                                 lit: Lit::Str(lit), ..
                             }) => lit.value(),
                             bad => {
-                                return Err(Error::new_spanned(bad, "expected a string literal"))
+                                return Err(Error::new_spanned(bad, "expected a string literal"));
                             }
                         };
 
