@@ -1,0 +1,22 @@
+[package]
+name = "tokio-postgres-rustls"
+description = "Rustls integration for tokio-postgres"
+version = "0.9.0"
+authors = ["Jasper Hugo <jasper@jasperhugo.com>"]
+repository = "https://github.com/jbg/tokio-postgres-rustls"
+edition = "2018"
+license = "MIT"
+readme = "README.md"
+
+[dependencies]
+futures = "0.3"
+ring = "0.16"
+rustls = "0.20"
+tokio = "1"
+tokio-postgres = "0.7"
+tokio-rustls = "0.23"
+
+[dev-dependencies]
+env_logger = { version = "0.9", default-features = false }
+tokio = { version = "1", features = ["macros", "rt"] }
+rustls = { version = "0.20", features = ["dangerous_configuration"] }
