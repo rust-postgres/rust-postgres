@@ -2,14 +2,14 @@
 name = "tokio-postgres"
 version = "0.7.16"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A native, asynchronous PostgreSQL client"
 repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql", "async"]
 categories = ["database"]
-rust-version = "1.81"
+rust-version = "1.85"
 
 [lib]
 test = false
@@ -52,7 +52,9 @@ bytes = "1.11"
 byteorder = "1.0"
 fallible-iterator = "0.2"
 futures-channel = { version = "0.3", features = ["sink"] }
-futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+futures-util = { version = "0.3", default-features = false, features = [
+  "sink",
+] }
 log = "0.4"
 parking_lot = "0.12"
 percent-encoding = "2.0"
@@ -69,16 +71,18 @@ whoami = "2.0.1"
 socket2 = { version = "0.6", features = ["all"] }
 
 [dev-dependencies]
-futures-util = { version = "0.3", default-features = false, features = ["async-await-macro"] }
+futures-util = { version = "0.3", default-features = false, features = [
+  "async-await-macro",
+] }
 futures-executor = "0.3"
 criterion = "0.7"
 env_logger = "0.11"
 tokio = { version = "1.0", features = [
-    "macros",
-    "net",
-    "rt",
-    "rt-multi-thread",
-    "time",
+  "macros",
+  "net",
+  "rt",
+  "rt-multi-thread",
+  "time",
 ] }
 
 bit-vec-06 = { version = "0.6", package = "bit-vec" }

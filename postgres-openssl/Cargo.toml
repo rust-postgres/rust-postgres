@@ -2,12 +2,12 @@
 name = "postgres-openssl"
 version = "0.5.2"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "TLS support for tokio-postgres via openssl"
 repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
-rust-version = "1.81"
+rust-version = "1.85"
 
 [features]
 default = ["runtime"]
