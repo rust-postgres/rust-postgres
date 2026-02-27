@@ -12,7 +12,7 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 
 /// Information about a column of a single query row.
 #[derive(Debug)]

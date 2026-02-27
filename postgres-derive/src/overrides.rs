@@ -1,4 +1,5 @@
-use syn::{Attribute, Error, Expr, ExprLit, Lit, Meta, Token, punctuated::Punctuated};
+use syn::punctuated::Punctuated;
+use syn::{Attribute, Error, Expr, ExprLit, Lit, Meta, Token};
 
 use crate::case::{RENAME_RULES, RenameRule};
 

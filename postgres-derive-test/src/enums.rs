@@ -1,5 +1,5 @@
 use crate::test_type;
-use postgres::{error::DbError, Client, NoTls};
+use postgres::{Client, NoTls, error::DbError};
 use postgres_types::{FromSql, ToSql, WrongType};
 use std::error::Error;
 

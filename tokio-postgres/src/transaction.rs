@@ -1,14 +1,14 @@
+#[cfg(feature = "runtime")]
+use crate::Socket;
 use crate::copy_out::CopyOutStream;
 use crate::query::RowStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::types::{BorrowToSql, ToSql, Type};
-#[cfg(feature = "runtime")]
-use crate::Socket;
 use crate::{
-    bind, query, slice_iter, CancelToken, Client, CopyInSink, Error, Portal, Row,
-    SimpleQueryMessage, Statement, ToStatement,
+    CancelToken, Client, CopyInSink, Error, Portal, Row, SimpleQueryMessage, Statement,
+    ToStatement, bind, query, slice_iter,
 };
 use bytes::Buf;
 use futures_util::TryStreamExt;

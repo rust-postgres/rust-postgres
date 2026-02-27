@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use jiff_01::{
-    civil::{Date, DateTime, Time},
     Span, SpanRound, Timestamp, Unit,
+    civil::{Date, DateTime, Time},
 };
 use postgres_protocol::types;
 use std::error::Error;

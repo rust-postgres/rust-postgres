@@ -2,7 +2,7 @@ use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::query::extract_row_affected;
-use crate::{query, slice_iter, Error, Statement};
+use crate::{Error, Statement, query, slice_iter};
 use bytes::{Buf, BufMut, BytesMut};
 use futures_channel::mpsc;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
@@ -14,7 +14,7 @@ use postgres_protocol::message::frontend::CopyData;
 use std::future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 
 enum CopyInMessage {
     Message(FrontendMessage),

@@ -1,14 +1,14 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::{query, slice_iter, Error, Statement};
+use crate::{Error, Statement, query, slice_iter};
 use bytes::Bytes;
 use futures_util::Stream;
 use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use std::pin::Pin;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 
 pub async fn copy_out(client: &InnerClient, statement: Statement) -> Result<CopyOutStream, Error> {
     debug!("executing copy out statement {}", statement.name());

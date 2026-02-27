@@ -2,9 +2,9 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::iter;
 use syn::{
-    punctuated::Punctuated, token, AngleBracketedGenericArguments, Data, DataStruct, DeriveInput,
-    Error, Fields, GenericArgument, GenericParam, Generics, Ident, Lifetime, PathArguments,
-    PathSegment,
+    AngleBracketedGenericArguments, Data, DataStruct, DeriveInput, Error, Fields, GenericArgument,
+    GenericParam, Generics, Ident, Lifetime, PathArguments, PathSegment, punctuated::Punctuated,
+    token,
 };
 use syn::{LifetimeParam, TraitBound, TraitBoundModifier, TypeParamBound};
 
@@ -45,7 +45,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
                 return Err(Error::new_spanned(
                     input,
                     "#[postgres(transparent)] may only be applied to single field tuple structs",
-                ))
+                ));
             }
         }
     } else if overrides.allow_mismatch {
@@ -70,48 +70,48 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
         }
     } else {
         match input.data {
-        Data::Enum(ref data) => {
-            let variants = data
-                .variants
-                .iter()
-                .map(|variant| Variant::parse(variant, overrides.rename_all))
-                .collect::<Result<Vec<_>, _>>()?;
-            (
-                accepts::enum_body(&name, &variants, overrides.allow_mismatch),
-                enum_body(&input.ident, &variants),
-            )
+            Data::Enum(ref data) => {
+                let variants = data
+                    .variants
+                    .iter()
+                    .map(|variant| Variant::parse(variant, overrides.rename_all))
+                    .collect::<Result<Vec<_>, _>>()?;
+                (
+                    accepts::enum_body(&name, &variants, overrides.allow_mismatch),
+                    enum_body(&input.ident, &variants),
+                )
+            }
+            Data::Struct(DataStruct {
+                fields: Fields::Unnamed(ref fields),
+                ..
+            }) if fields.unnamed.len() == 1 => {
+                let field = fields.unnamed.first().unwrap();
+                (
+                    domain_accepts_body(&name, field),
+                    domain_body(&input.ident, field),
+                )
+            }
+            Data::Struct(DataStruct {
+                fields: Fields::Named(ref fields),
+                ..
+            }) => {
+                let fields = fields
+                    .named
+                    .iter()
+                    .map(|field| Field::parse(field, overrides.rename_all))
+                    .collect::<Result<Vec<_>, _>>()?;
+                (
+                    accepts::composite_body(&name, "FromSql", &fields),
+                    composite_body(&input.ident, &fields),
+                )
+            }
+            _ => {
+                return Err(Error::new_spanned(
+                    input,
+                    "#[derive(FromSql)] may only be applied to structs, single field tuple structs, and enums",
+                ));
+            }
         }
-        Data::Struct(DataStruct {
-            fields: Fields::Unnamed(ref fields),
-            ..
-        }) if fields.unnamed.len() == 1 => {
-            let field = fields.unnamed.first().unwrap();
-            (
-                domain_accepts_body(&name, field),
-                domain_body(&input.ident, field),
-            )
-        }
-        Data::Struct(DataStruct {
-            fields: Fields::Named(ref fields),
-            ..
-        }) => {
-            let fields = fields
-                .named
-                .iter()
-                .map(|field| Field::parse(field, overrides.rename_all))
-                .collect::<Result<Vec<_>, _>>()?;
-            (
-                accepts::composite_body(&name, "FromSql", &fields),
-                composite_body(&input.ident, &fields),
-            )
-        }
-        _ => {
-            return Err(Error::new_spanned(
-                input,
-                "#[derive(FromSql)] may only be applied to structs, single field tuple structs, and enums",
-            ))
-        }
-    }
     };
 
     let ident = &input.ident;
