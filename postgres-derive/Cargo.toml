@@ -3,10 +3,10 @@ name = "postgres-derive"
 version = "0.4.7"
 authors = ["Steven Fackler <sfackler@palantir.com>"]
 license = "MIT OR Apache-2.0"
-edition = "2021"
+edition = "2024"
 description = "An internal crate used by postgres-types"
 repository = "https://github.com/rust-postgres/rust-postgres"
-rust-version = "1.81"
+rust-version = "1.85"
 
 [lib]
 proc-macro = true

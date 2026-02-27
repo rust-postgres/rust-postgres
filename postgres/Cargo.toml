@@ -2,14 +2,14 @@
 name = "postgres"
 version = "0.19.12"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A native, synchronous PostgreSQL client"
 repository = "https://github.com/rust-postgres/rust-postgres"
 readme = "../README.md"
 keywords = ["database", "postgres", "postgresql", "sql"]
 categories = ["database"]
-rust-version = "1.81"
+rust-version = "1.85"
 
 [[bench]]
 name = "bench"
@@ -42,7 +42,9 @@ with-time-0_3 = ["tokio-postgres/with-time-0_3"]
 [dependencies]
 bytes = "1.11"
 fallible-iterator = "0.2"
-futures-util = { version = "0.3.14", default-features = false, features = ["sink"] }
+futures-util = { version = "0.3.14", default-features = false, features = [
+  "sink",
+] }
 log = "0.4"
 tokio-postgres = { version = "0.7.15", path = "../tokio-postgres" }
 tokio = { version = "1.0", features = ["rt", "time"] }
