@@ -187,12 +187,32 @@ mod transaction_builder;
 pub mod types;
 
 /// A convenience function which parses a connection string and connects to the database.
+/// 
+/// This method returns the client which will allow you to interact with the database and a connection
+/// object which is the one that performs the communication with the dabase. **It's important to use the
+/// connection object as shown in the below example, if it is ignored then the client object will not work
+/// and when a .wait is called it will await forever.**
 ///
 /// See the documentation for [`Config`] for details on the connection string format.
 ///
 /// Requires the `runtime` Cargo feature (enabled by default).
 ///
 /// [`Config`]: config/struct.Config.html
+/// 
+/// # Examples
+/// ```
+/// // Connect to the database.
+/// let (client, connection) =
+///    tokio_postgres::connect("host=localhost user=postgres", NoTls).await?;
+/// // The connection object performs the actual communication with the database,
+/// // so spawn it off to run on its own.
+/// tokio::spawn(async move {
+///    if let Err(e) = connection.await {
+///        eprintln!("connection error: {}", e);
+///    }
+/// });
+/// // Use the client 
+/// ```
 #[cfg(feature = "runtime")]
 pub async fn connect<T>(
     config: &str,
