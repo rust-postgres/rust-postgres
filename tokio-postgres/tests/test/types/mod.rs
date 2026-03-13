@@ -35,6 +35,10 @@ mod jiff_02;
 mod serde_json_1;
 #[cfg(feature = "with-smol_str-01")]
 mod smol_str_01;
+#[cfg(feature = "with-smol_str-02")]
+mod smol_str_02;
+#[cfg(feature = "with-smol_str-03")]
+mod smol_str_03;
 #[cfg(feature = "with-time-0_2")]
 mod time_02;
 #[cfg(feature = "with-time-0_3")]
