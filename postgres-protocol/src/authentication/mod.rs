@@ -1,4 +1,5 @@
 //! Authentication protocol support.
+use crate::hex::LowerHexWrapper;
 use md5::{Digest, Md5};
 
 pub mod sasl;
@@ -13,10 +14,10 @@ pub fn md5_hash(username: &[u8], password: &[u8], salt: [u8; 4]) -> String {
     let mut md5 = Md5::new();
     md5.update(password);
     md5.update(username);
-    let output = md5.finalize_reset();
+    let output = LowerHexWrapper(md5.finalize_reset());
     md5.update(format!("{output:x}"));
     md5.update(salt);
-    format!("md5{:x}", md5.finalize())
+    format!("md5{:x}", LowerHexWrapper(md5.finalize()))
 }
 
 #[cfg(test)]
