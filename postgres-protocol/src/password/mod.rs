@@ -7,9 +7,10 @@
 //! end up in logs pg_stat displays, etc.
 
 use crate::authentication::sasl;
+use crate::hex::LowerHexWrapper;
 use base64::display::Base64Display;
 use base64::engine::general_purpose::STANDARD;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use md5::Md5;
 use rand::Rng;
 use sha2::digest::FixedOutput;
@@ -101,6 +102,6 @@ pub fn md5(password: &[u8], username: &str) -> String {
 
     let mut hash = Md5::new();
     hash.update(&salted_password);
-    let digest = hash.finalize();
+    let digest = LowerHexWrapper(hash.finalize());
     format!("md5{digest:x}")
 }
