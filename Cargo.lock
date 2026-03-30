@@ -1183,7 +1183,7 @@ dependencies = [
 
 [[package]]
 name = "postgres"
-version = "0.19.12"
+version = "0.19.13"
 dependencies = [
  "bytes",
  "criterion",

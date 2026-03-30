@@ -1,5 +1,19 @@
 # Change Log
 
+## v0.19.13 - 2026-03-30
+
+### Added
+
+* Added `Client::execute_typed` method.
+* Added `Client::query_typed_one` and `Client::query_typed_opt` methods.
+* Added `GenericClient::execute_typed`, `GenericClient::query_typed_one`, and `GenericClient::query_typed_opt` methods.
+* Added `Transaction::execute_typed`, `Transaction::query_typed_one`, and `Transaction::query_typed_opt` methods.
+* Added support for `bit-vec` 0.9 via the `with-bit-vec-0_9` feature.
+
+### Changed
+
+* Upgraded to Rust edition 2024, minimum Rust version 1.85.
+
 ## v0.19.12 - 2025-10-08
 
 ### Added
