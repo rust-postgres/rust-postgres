@@ -1239,7 +1239,7 @@ dependencies = [
 
 [[package]]
 name = "postgres-protocol"
-version = "0.6.10"
+version = "0.6.11"
 dependencies = [
  "base64",
  "byteorder",

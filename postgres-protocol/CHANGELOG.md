@@ -1,5 +1,15 @@
 # Change Log
 
+## v0.6.11 - 2026-03-30
+
+### Changed
+
+* Upgraded `hmac` to 0.13.
+* Upgraded `md-5` to 0.11.
+* Upgraded `sha2` to 0.11.
+* Upgraded `rand` to 0.10.
+* Upgraded to Rust edition 2024, minimum Rust version 1.85.
+
 ## v0.6.10 - 2026-01-14
 
 ### Added
