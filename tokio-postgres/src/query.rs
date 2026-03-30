@@ -73,7 +73,7 @@ where
         let param_oids = params.iter().map(|(_, t)| t.oid()).collect::<Vec<_>>();
 
         client.with_buf(|buf| {
-            frontend::parse("", query, param_oids.into_iter(), buf).map_err(Error::parse)?;
+            frontend::parse("", query, param_oids, buf).map_err(Error::parse)?;
             encode_bind_raw("", params, "", buf)?;
             frontend::describe(b'S', "", buf).map_err(Error::encode)?;
             frontend::execute("", 0, buf).map_err(Error::encode)?;
@@ -134,7 +134,7 @@ where
         let param_oids = params.iter().map(|(_, t)| t.oid()).collect::<Vec<_>>();
 
         client.with_buf(|buf| {
-            frontend::parse("", query, param_oids.into_iter(), buf).map_err(Error::parse)?;
+            frontend::parse("", query, param_oids, buf).map_err(Error::parse)?;
             encode_bind_raw("", params, "", buf)?;
             frontend::describe(b'S', "", buf).map_err(Error::encode)?;
             frontend::execute("", 0, buf).map_err(Error::encode)?;
