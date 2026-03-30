@@ -1,5 +1,15 @@
 # Change Log
 
+## v0.2.13 - 2026-03-30
+
+### Added
+
+* Added support for `bit-vec` 0.9 via the `with-bit-vec-0_9` feature.
+
+### Changed
+
+* Upgraded to Rust edition 2024, minimum Rust version 1.85.
+
 ## v0.2.12 - 2026-01-14
 
 ### Added
