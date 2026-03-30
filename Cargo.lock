@@ -1215,7 +1215,7 @@ dependencies = [
 
 [[package]]
 name = "postgres-native-tls"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "futures-util",
  "native-tls",
