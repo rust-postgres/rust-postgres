@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.4.8 - 2026-03-30
+
+### Changed
+
+* Upgraded to Rust edition 2024, minimum Rust version 1.85.
+
 ## v0.4.7 - 2025-09-25
 
 ### Added
