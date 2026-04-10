@@ -188,13 +188,25 @@ where
     }
 }
 
+/// Encode the initial Bind+Execute for a COPY IN statement.
+///
+/// Must not include a Sync — CopyInReceiver sends the sole Sync with
+/// CopyDone/CopyFail.  A trailing Flush forces the server to deliver
+/// its response even if COPY mode is never entered (error path).
+pub(crate) fn encode_copy_in(
+    client: &InnerClient,
+    statement: &Statement,
+) -> Result<bytes::Bytes, Error> {
+    query::encode(client, statement, slice_iter(&[]))
+}
+
 pub async fn copy_in<T>(client: &InnerClient, statement: Statement) -> Result<CopyInSink<T>, Error>
 where
     T: Buf + 'static + Send,
 {
     debug!("executing copy in statement {}", statement.name());
 
-    let buf = query::encode(client, &statement, slice_iter(&[]))?;
+    let buf = encode_copy_in(client, &statement)?;
 
     let (mut sender, receiver) = mpsc::channel(1);
     let receiver = CopyInReceiver::new(receiver);
@@ -222,4 +234,35 @@ where
         state: SinkState::Active,
         _p2: PhantomData,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encode_copy_in;
+    use crate::client::InnerClient;
+    use crate::Statement;
+
+    /// Wire bytes for Sync ('S', length 4) and Flush ('H', length 4).
+    const SYNC_BYTES: [u8; 5] = [b'S', 0, 0, 0, 4];
+    const FLUSH_BYTES: [u8; 5] = [b'H', 0, 0, 0, 4];
+
+    /// The initial Bind+Execute that `copy_in` sends must NOT contain a
+    /// Sync message.  CopyInReceiver sends the sole Sync with CopyDone or
+    /// CopyFail; a second Sync here would produce two ReadyForQuery
+    /// responses, crashing the connection driver.
+    ///
+    /// It SHOULD contain a Flush so the server delivers its response even
+    /// when COPY mode is never entered (error path).
+    #[test]
+    fn copy_in_initial_message_has_no_sync() {
+        let client = InnerClient::new_for_test();
+        let statement = Statement::unnamed(vec![], vec![]);
+        let buf = encode_copy_in(&client, &statement).unwrap();
+
+        let syncs = buf.windows(5).filter(|w| *w == SYNC_BYTES).count();
+        assert_eq!(syncs, 0, "must not contain Sync");
+
+        let flushes = buf.windows(5).filter(|w| *w == FLUSH_BYTES).count();
+        assert_eq!(flushes, 1, "must contain Flush");
+    }
 }
