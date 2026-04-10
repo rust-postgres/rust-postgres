@@ -389,6 +389,36 @@ async fn simple_query() {
 }
 
 #[tokio::test]
+async fn simple_query_column_type_oid() {
+    let client = connect("user=postgres").await;
+
+    // SERIAL → int4 (OID 23), TEXT → OID 25
+    let messages = client
+        .simple_query(
+            "CREATE TEMPORARY TABLE type_oid_test (id SERIAL, name TEXT);
+             SELECT * FROM type_oid_test;",
+        )
+        .await
+        .unwrap();
+
+    match &messages[1] {
+        SimpleQueryMessage::RowDescription(columns) => {
+            assert_eq!(
+                columns.get(0).map(|c| c.type_oid()),
+                Some(23),
+                "id (SERIAL/int4) should have OID 23"
+            );
+            assert_eq!(
+                columns.get(1).map(|c| c.type_oid()),
+                Some(25),
+                "name (TEXT) should have OID 25"
+            );
+        }
+        _ => panic!("expected RowDescription"),
+    }
+}
+
+#[tokio::test]
 async fn cancel_query_raw() {
     let client = connect("user=postgres").await;
 
