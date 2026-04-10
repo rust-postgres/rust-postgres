@@ -197,7 +197,7 @@ pub(crate) fn encode_copy_in(
     client: &InnerClient,
     statement: &Statement,
 ) -> Result<bytes::Bytes, Error> {
-    query::encode(client, statement, slice_iter(&[]))
+    query::encode_no_sync(client, statement, slice_iter(&[]))
 }
 
 pub async fn copy_in<T>(client: &InnerClient, statement: Statement) -> Result<CopyInSink<T>, Error>
