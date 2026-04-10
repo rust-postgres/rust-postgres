@@ -29,7 +29,7 @@ use std::fmt;
 use std::future;
 #[cfg(feature = "runtime")]
 use std::net::IpAddr;
-#[cfg(feature = "runtime")]
+#[cfg(all(unix, feature = "runtime"))]
 use std::path::PathBuf;
 use std::pin::pin;
 use std::sync::Arc;
@@ -93,6 +93,16 @@ pub struct InnerClient {
 }
 
 impl InnerClient {
+    #[cfg(test)]
+    pub(crate) fn new_for_test() -> InnerClient {
+        let (tx, _rx) = mpsc::unbounded();
+        InnerClient {
+            sender: tx,
+            cached_typeinfo: Default::default(),
+            buffer: Mutex::new(BytesMut::new()),
+        }
+    }
+
     pub fn send(&self, messages: RequestMessages) -> Result<Responses, Error> {
         let (sender, receiver) = mpsc::channel(1);
         let request = Request { messages, sender };
