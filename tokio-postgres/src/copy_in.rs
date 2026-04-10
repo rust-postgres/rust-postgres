@@ -239,8 +239,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::encode_copy_in;
-    use crate::client::InnerClient;
     use crate::Statement;
+    use crate::client::InnerClient;
 
     /// Wire bytes for Sync ('S', length 4) and Flush ('H', length 4).
     const SYNC_BYTES: [u8; 5] = [b'S', 0, 0, 0, 4];
