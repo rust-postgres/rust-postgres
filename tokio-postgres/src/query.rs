@@ -267,6 +267,34 @@ where
     })
 }
 
+/// Like [`encode`] but replaces the trailing Sync with a Flush message.
+///
+/// Used by `copy_in` where the Sync must be deferred: CopyInReceiver sends
+/// the sole Sync together with CopyDone (success) or CopyFail (abort).
+/// Sending two Syncs would produce two ReadyForQuery messages from the
+/// server, crashing the connection driver.
+///
+/// The Flush forces the server to deliver buffered output (BindComplete,
+/// CopyInResponse, or ErrorResponse) without producing a ReadyForQuery,
+/// preventing a hang when the server never enters COPY mode.
+pub fn encode_no_sync<P, I>(
+    client: &InnerClient,
+    statement: &Statement,
+    params: I,
+) -> Result<Bytes, Error>
+where
+    P: BorrowToSql,
+    I: IntoIterator<Item = P>,
+    I::IntoIter: ExactSizeIterator,
+{
+    client.with_buf(|buf| {
+        encode_bind(statement, params, "", buf)?;
+        frontend::execute("", 0, buf).map_err(Error::encode)?;
+        frontend::flush(buf);
+        Ok(buf.split().freeze())
+    })
+}
+
 pub fn encode_bind<P, I>(
     statement: &Statement,
     params: I,
