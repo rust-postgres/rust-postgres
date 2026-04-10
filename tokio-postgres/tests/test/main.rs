@@ -404,7 +404,7 @@ async fn simple_query_column_type_oid() {
     match &messages[1] {
         SimpleQueryMessage::RowDescription(columns) => {
             assert_eq!(
-                columns.get(0).map(|c| c.type_oid()),
+                columns.first().map(|c| c.type_oid()),
                 Some(23),
                 "id (SERIAL/int4) should have OID 23"
             );
