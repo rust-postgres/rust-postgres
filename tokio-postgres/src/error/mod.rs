@@ -355,6 +355,7 @@ enum Kind {
     ConfigParse,
     Config,
     RowCount,
+    CommitRolledBack,
     #[cfg(feature = "runtime")]
     Connect,
     Timeout,
@@ -398,6 +399,7 @@ impl fmt::Display for Error {
             Kind::ConfigParse => fmt.write_str("invalid connection string"),
             Kind::Config => fmt.write_str("invalid configuration"),
             Kind::RowCount => fmt.write_str("query returned an unexpected number of rows"),
+            Kind::CommitRolledBack => fmt.write_str("transaction commit completed as ROLLBACK"),
             #[cfg(feature = "runtime")]
             Kind::Connect => fmt.write_str("error connecting to server"),
             Kind::Timeout => fmt.write_str("timeout waiting for server"),
@@ -427,6 +429,11 @@ impl Error {
     /// Determines if the error was associated with closed connection.
     pub fn is_closed(&self) -> bool {
         self.0.kind == Kind::Closed
+    }
+
+    /// Determines if the transaction commit completed as `ROLLBACK`.
+    pub fn is_commit_rolled_back(&self) -> bool {
+        self.0.kind == Kind::CommitRolledBack
     }
 
     /// Returns the SQLSTATE error code associated with the error.
@@ -507,6 +514,10 @@ impl Error {
 
     pub(crate) fn row_count() -> Error {
         Error::new(Kind::RowCount, None)
+    }
+
+    pub(crate) fn commit_rolled_back() -> Error {
+        Error::new(Kind::CommitRolledBack, None)
     }
 
     #[cfg(feature = "runtime")]

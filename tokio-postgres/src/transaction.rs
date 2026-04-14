@@ -53,12 +53,13 @@ impl<'a> Transaction<'a> {
     /// Consumes the transaction, committing all changes made within it.
     pub async fn commit(mut self) -> Result<(), Error> {
         self.done = true;
-        let query = if let Some(sp) = self.savepoint.as_ref() {
-            format!("RELEASE {}", sp.name)
+        if let Some(sp) = self.savepoint.as_ref() {
+            let query = format!("RELEASE {}", sp.name);
+
+            self.client.batch_execute(&query).await
         } else {
-            "COMMIT".to_string()
-        };
-        self.client.batch_execute(&query).await
+            self.client.execute_commit().await
+        }
     }
 
     /// Rolls the transaction back, discarding all changes made within it.
