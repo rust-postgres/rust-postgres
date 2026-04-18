@@ -54,6 +54,36 @@ fn name_overrides() {
 }
 
 #[test]
+fn schema_overrides() {
+    #[derive(Debug, ToSql, FromSql, PartialEq)]
+    #[postgres(schema = "custom_schema")]
+    enum Mood {
+        #[postgres(name = "sad")]
+        Sad,
+        #[postgres(name = "ok")]
+        Ok,
+        #[postgres(name = "happy")]
+        Happy,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.batch_execute(
+        "CREATE SCHEMA IF NOT EXISTS custom_schema; CREATE TYPE custom_schema.\"Mood\" AS ENUM ('sad', 'ok', 'happy')"
+    )
+    .unwrap();
+
+    test_type(
+        &mut conn,
+        "custom_schema.\"Mood\"",
+        &[
+            (Mood::Sad, "'sad'"),
+            (Mood::Ok, "'ok'"),
+            (Mood::Happy, "'happy'"),
+        ],
+    );
+}
+
+#[test]
 fn rename_all_overrides() {
     #[derive(Debug, ToSql, FromSql, PartialEq)]
     #[postgres(name = "mood", rename_all = "snake_case")]
@@ -95,6 +125,25 @@ fn wrong_name() {
         .unwrap();
 
     let err = conn.execute("SELECT $1::foo", &[&Foo::Bar]).unwrap_err();
+    assert!(err.source().unwrap().is::<WrongType>());
+}
+
+#[test]
+fn wrong_schema() {
+    #[derive(Debug, ToSql, FromSql, PartialEq)]
+    #[postgres(schema = "my_schema")]
+    enum Foo {
+        Bar,
+        Baz,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.execute("CREATE TYPE pg_temp.\"Foo\" AS ENUM ('Bar', 'Baz')", &[])
+        .unwrap();
+
+    let err = conn
+        .execute("SELECT $1::\"Foo\"", &[&Foo::Bar])
+        .unwrap_err();
     assert!(err.source().unwrap().is::<WrongType>());
 }
 
