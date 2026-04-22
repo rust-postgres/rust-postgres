@@ -288,6 +288,8 @@ mod geo_types_07;
 mod jiff_01;
 #[cfg(feature = "with-jiff-0_2")]
 mod jiff_02;
+#[cfg(feature = "with-macaddr-1")]
+mod macaddr_1;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
 #[cfg(feature = "with-smol_str-01")]
@@ -510,6 +512,8 @@ impl WrongType {
 /// | `jiff::civil::Time`             | TIME                                |
 /// | `jiff::Timestamp`               | TIMESTAMP WITH TIME ZONE            |
 /// | `eui48::MacAddress`             | MACADDR                             |
+/// | `macaddr::MacAddr6`             | MACADDR                             |
+/// | `macaddr::MacAddr8`             | MACADDR8                            |
 /// | `geo_types::Point<f64>`         | POINT                               |
 /// | `geo_types::Rect<f64>`          | BOX                                 |
 /// | `geo_types::LineString<f64>`    | PATH                                |
