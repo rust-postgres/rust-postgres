@@ -85,6 +85,7 @@ pub enum Message {
     AuthenticationSasl(AuthenticationSaslBody),
     AuthenticationSaslContinue(AuthenticationSaslContinueBody),
     AuthenticationSaslFinal(AuthenticationSaslFinalBody),
+    AuthenticationSha256Password(AuthenticationSha256PasswordBody),
     BackendKeyData(BackendKeyDataBody),
     BindComplete,
     CloseComplete,
@@ -221,8 +222,44 @@ impl Message {
                 }
                 9 => Message::AuthenticationSspi,
                 10 => {
-                    let storage = buf.read_all();
-                    Message::AuthenticationSasl(AuthenticationSaslBody(storage))
+                    let password_stored_method = buf.read_i32::<BigEndian>()?;
+                    match password_stored_method {
+                        SHA256_PASSWORD | PLAIN_PASSWORD => {
+                            let mut random64code = [0u8; 64];
+                            buf.read_exact(&mut random64code)?;
+                            let mut token = [0u8; 8];
+                            buf.read_exact(&mut token)?;
+                            let server_iteration = buf.read_i32::<BigEndian>()?;
+                            Message::AuthenticationSha256Password(
+                                AuthenticationSha256PasswordBody {
+                                    password_stored_method,
+                                    random64code: Some(random64code),
+                                    token: Some(token),
+                                    server_iteration: Some(server_iteration),
+                                    md5_salt: None,
+                                },
+                            )
+                        }
+                        MD5_PASSWORD => {
+                            let mut md5_salt = [0u8; 4];
+                            buf.read_exact(&mut md5_salt)?;
+                            Message::AuthenticationSha256Password(
+                                AuthenticationSha256PasswordBody {
+                                    password_stored_method,
+                                    random64code: None,
+                                    token: None,
+                                    server_iteration: None,
+                                    md5_salt: Some(md5_salt),
+                                },
+                            )
+                        }
+                        _ => {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                format!("unknown password stored method `{password_stored_method}`"),
+                            ));
+                        }
+                    }
                 }
                 11 => {
                     let storage = buf.read_all();
@@ -402,6 +439,45 @@ impl AuthenticationSaslFinalBody {
     #[inline]
     pub fn data(&self) -> &[u8] {
         &self.0
+    }
+}
+
+pub const PLAIN_PASSWORD: i32 = 0;
+pub const MD5_PASSWORD: i32 = 1;
+pub const SHA256_PASSWORD: i32 = 2;
+
+pub struct AuthenticationSha256PasswordBody {
+    password_stored_method: i32,
+    random64code: Option<[u8; 64]>,
+    token: Option<[u8; 8]>,
+    server_iteration: Option<i32>,
+    md5_salt: Option<[u8; 4]>,
+}
+
+impl AuthenticationSha256PasswordBody {
+    #[inline]
+    pub fn password_stored_method(&self) -> i32 {
+        self.password_stored_method
+    }
+
+    #[inline]
+    pub fn random64code(&self) -> Option<&[u8; 64]> {
+        self.random64code.as_ref()
+    }
+
+    #[inline]
+    pub fn token(&self) -> Option<&[u8; 8]> {
+        self.token.as_ref()
+    }
+
+    #[inline]
+    pub fn server_iteration(&self) -> Option<i32> {
+        self.server_iteration
+    }
+
+    #[inline]
+    pub fn md5_salt(&self) -> Option<&[u8; 4]> {
+        self.md5_salt.as_ref()
     }
 }
 

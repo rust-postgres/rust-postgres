@@ -3,6 +3,7 @@ use crate::hex::LowerHexWrapper;
 use md5::{Digest, Md5};
 
 pub mod sasl;
+pub mod sha256;
 
 /// Hashes authentication information in a way suitable for use in response
 /// to an `AuthenticationMd5Password` message.

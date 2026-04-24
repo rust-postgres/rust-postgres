@@ -11,7 +11,8 @@ use futures_util::{Sink, SinkExt, Stream, TryStreamExt};
 use opengauss_protocol::authentication;
 use opengauss_protocol::authentication::sasl;
 use opengauss_protocol::authentication::sasl::ScramSha256;
-use opengauss_protocol::message::backend::{AuthenticationSaslBody, Message};
+use opengauss_protocol::authentication::sha256;
+use opengauss_protocol::message::backend::{AuthenticationSaslBody, Message, SHA256_PASSWORD};
 use opengauss_protocol::message::frontend;
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
@@ -190,6 +191,51 @@ where
 
             let output = authentication::md5_hash(user.as_bytes(), pass, body.salt());
             authenticate_password(stream, output.as_bytes()).await?;
+        }
+        Some(Message::AuthenticationSha256Password(body)) => {
+            can_skip_channel_binding(config)?;
+
+            let pass = config
+                .password
+                .as_ref()
+                .ok_or_else(|| Error::config("password missing".into()))?;
+
+            match body.password_stored_method() {
+                SHA256_PASSWORD | 0 /* PLAIN_PASSWORD */ => {
+                    let random64code = body.random64code().ok_or_else(|| {
+                        Error::authentication("missing salt in SHA256 auth".into())
+                    })?;
+                    let token = body.token().ok_or_else(|| {
+                        Error::authentication("missing token in SHA256 auth".into())
+                    })?;
+                    let server_iteration =
+                        body.server_iteration()
+                            .unwrap_or(sha256::DEFAULT_ITERATION_COUNT as i32);
+
+                    let output = sha256::rfc5802_algorithm(
+                        pass,
+                        random64code,
+                        token,
+                        server_iteration,
+                    )
+                    .map_err(|e| Error::authentication(e.to_string().into()))?;
+
+                    authenticate_password(stream, output.as_bytes()).await?;
+                }
+                1 /* MD5_PASSWORD */ => {
+                    let md5_salt = body.md5_salt().ok_or_else(|| {
+                        Error::authentication("missing md5_salt in SHA256 auth".into())
+                    })?;
+                    let output =
+                        authentication::md5_hash(user.as_bytes(), pass, *md5_salt);
+                    authenticate_password(stream, output.as_bytes()).await?;
+                }
+                method => {
+                    return Err(Error::authentication(
+                        format!("unsupported password stored method: {method}").into(),
+                    ));
+                }
+            }
         }
         Some(Message::AuthenticationSasl(body)) => {
             authenticate_sasl(stream, body, config).await?;
