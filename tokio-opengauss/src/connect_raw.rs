@@ -237,6 +237,40 @@ where
                 }
             }
         }
+        Some(Message::AuthenticationMd5Sha256Password(body)) => {
+            can_skip_channel_binding(config)?;
+
+            let pass = config
+                .password
+                .as_ref()
+                .ok_or_else(|| Error::config("password missing".into()))?;
+
+            let salt = body.salt();
+            let md5_salt = body.md5_salt();
+
+            let output = sha256::md5_sha256_hash(pass, salt, md5_salt, 0)
+                .map_err(|e| Error::authentication(e.to_string().into()))?;
+
+            authenticate_password(stream, output.as_bytes()).await?;
+        }
+        Some(Message::AuthenticationSm3Password(body)) => {
+            can_skip_channel_binding(config)?;
+
+            let pass = config
+                .password
+                .as_ref()
+                .ok_or_else(|| Error::config("password missing".into()))?;
+
+            let output = sha256::sm3_algorithm(
+                pass,
+                body.random64code(),
+                body.token(),
+                body.server_iteration(),
+            )
+            .map_err(|e| Error::authentication(e.to_string().into()))?;
+
+            authenticate_password(stream, output.as_bytes()).await?;
+        }
         Some(Message::AuthenticationSasl(body)) => {
             authenticate_sasl(stream, body, config).await?;
         }

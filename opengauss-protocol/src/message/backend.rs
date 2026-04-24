@@ -86,6 +86,10 @@ pub enum Message {
     AuthenticationSaslContinue(AuthenticationSaslContinueBody),
     AuthenticationSaslFinal(AuthenticationSaslFinalBody),
     AuthenticationSha256Password(AuthenticationSha256PasswordBody),
+    /// openGauss MD5+SHA256 combined authentication (auth code 11)
+    AuthenticationMd5Sha256Password(AuthenticationMd5Sha256PasswordBody),
+    /// openGauss SM3 password authentication (auth code 13)
+    AuthenticationSm3Password(AuthenticationSm3PasswordBody),
     BackendKeyData(BackendKeyDataBody),
     BindComplete,
     CloseComplete,
@@ -262,12 +266,35 @@ impl Message {
                     }
                 }
                 11 => {
-                    let storage = buf.read_all();
-                    Message::AuthenticationSaslContinue(AuthenticationSaslContinueBody(storage))
+                    // AUTH_REQ_MD5_SHA256: salt[64 hex] + md5Salt[4 bytes]
+                    let mut salt = [0u8; 64];
+                    buf.read_exact(&mut salt)?;
+                    let mut md5_salt = [0u8; 4];
+                    buf.read_exact(&mut md5_salt)?;
+                    Message::AuthenticationMd5Sha256Password(
+                        AuthenticationMd5Sha256PasswordBody { salt, md5_salt },
+                    )
                 }
                 12 => {
                     let storage = buf.read_all();
                     Message::AuthenticationSaslFinal(AuthenticationSaslFinalBody(storage))
+                }
+                13 => {
+                    // AUTH_REQ_SM3: same wire format as SHA256 (nested sub-match)
+                    let password_stored_method = buf.read_i32::<BigEndian>()?;
+                    let mut random64code = [0u8; 64];
+                    buf.read_exact(&mut random64code)?;
+                    let mut token = [0u8; 8];
+                    buf.read_exact(&mut token)?;
+                    let server_iteration = buf.read_i32::<BigEndian>()?;
+                    Message::AuthenticationSm3Password(
+                        AuthenticationSm3PasswordBody {
+                            password_stored_method,
+                            random64code,
+                            token,
+                            server_iteration,
+                        },
+                    )
                 }
                 tag => {
                     return Err(io::Error::new(
@@ -478,6 +505,65 @@ impl AuthenticationSha256PasswordBody {
     #[inline]
     pub fn md5_salt(&self) -> Option<&[u8; 4]> {
         self.md5_salt.as_ref()
+    }
+}
+
+/// SM3_PASSWORD constant (from openGauss sha2.h)
+pub const SM3_PASSWORD: i32 = 3;
+
+/// Body of `AuthenticationMd5Sha256Password` message.
+///
+/// Wire format: salt[64 hex chars] + md5_salt[4 bytes]
+pub struct AuthenticationMd5Sha256PasswordBody {
+    salt: [u8; 64],
+    md5_salt: [u8; 4],
+}
+
+impl AuthenticationMd5Sha256PasswordBody {
+    #[inline]
+    pub fn salt(&self) -> &[u8; 64] {
+        &self.salt
+    }
+
+    #[inline]
+    pub fn md5_salt(&self) -> &[u8; 4] {
+        &self.md5_salt
+    }
+}
+
+/// Body of `AuthenticationSm3Password` message.
+///
+/// Wire format (after auth type i32=13):
+///   i32  password_stored_method
+///   byte[64]  random64code (salt as hex)
+///   byte[8]   token (as hex)
+///   i32 BE    server_iteration
+pub struct AuthenticationSm3PasswordBody {
+    password_stored_method: i32,
+    random64code: [u8; 64],
+    token: [u8; 8],
+    server_iteration: i32,
+}
+
+impl AuthenticationSm3PasswordBody {
+    #[inline]
+    pub fn password_stored_method(&self) -> i32 {
+        self.password_stored_method
+    }
+
+    #[inline]
+    pub fn random64code(&self) -> &[u8; 64] {
+        &self.random64code
+    }
+
+    #[inline]
+    pub fn token(&self) -> &[u8; 8] {
+        &self.token
+    }
+
+    #[inline]
+    pub fn server_iteration(&self) -> i32 {
+        self.server_iteration
     }
 }
 
