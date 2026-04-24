@@ -23,7 +23,7 @@ struct Type {
 }
 
 pub fn build() {
-    let mut file = BufWriter::new(File::create("../postgres-types/src/type_gen.rs").unwrap());
+    let mut file = BufWriter::new(File::create("../opengauss-types/src/type_gen.rs").unwrap());
     let types = parse_types();
 
     make_header(&mut file);

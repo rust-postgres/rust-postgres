@@ -1,0 +1,19 @@
+[package]
+name = "opengauss-derive"
+version = "0.4.8"
+authors = ["Steven Fackler <sfackler@palantir.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2024"
+description = "An internal crate used by opengauss-types"
+repository = "https://github.com/c2j/rust-opengauss"
+rust-version = "1.85"
+
+[lib]
+proc-macro = true
+test = false
+
+[dependencies]
+syn = "2.0"
+proc-macro2 = "1.0"
+quote = "1.0"
+heck = "0.5"

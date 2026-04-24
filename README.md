@@ -1,46 +1,46 @@
-# Rust-Postgres
+# Rust-openGauss
 
-PostgreSQL support for Rust.
+openGauss support for Rust.
 
-## postgres [![Latest Version](https://img.shields.io/crates/v/postgres.svg)](https://crates.io/crates/postgres)
+## opengauss [![Latest Version](https://img.shields.io/crates/v/opengauss.svg)](https://crates.io/crates/opengauss)
 
-[Documentation](https://docs.rs/postgres)
+[Documentation](https://docs.rs/opengauss)
 
-A native, synchronous PostgreSQL client.
+A native, synchronous openGauss client.
 
-## tokio-postgres [![Latest Version](https://img.shields.io/crates/v/tokio-postgres.svg)](https://crates.io/crates/tokio-postgres)
+## tokio-opengauss [![Latest Version](https://img.shields.io/crates/v/tokio-opengauss.svg)](https://crates.io/crates/tokio-opengauss)
 
-[Documentation](https://docs.rs/tokio-postgres)
+[Documentation](https://docs.rs/tokio-opengauss)
 
-A native, asynchronous PostgreSQL client.
+A native, asynchronous openGauss client.
 
-## postgres-types [![Latest Version](https://img.shields.io/crates/v/postgres-types.svg)](https://crates.io/crates/postgres-types)
+## opengauss-types [![Latest Version](https://img.shields.io/crates/v/opengauss-types.svg)](https://crates.io/crates/opengauss-types)
 
-[Documentation](https://docs.rs/postgres-types)
+[Documentation](https://docs.rs/opengauss-types)
 
-Conversions between Rust and Postgres types.
+Conversions between Rust and openGauss types.
 
-## postgres-native-tls [![Latest Version](https://img.shields.io/crates/v/postgres-native-tls.svg)](https://crates.io/crates/postgres-native-tls)
+## opengauss-native-tls [![Latest Version](https://img.shields.io/crates/v/opengauss-native-tls.svg)](https://crates.io/crates/opengauss-native-tls)
 
-[Documentation](https://docs.rs/postgres-native-tls)
+[Documentation](https://docs.rs/opengauss-native-tls)
 
-TLS support for postgres and tokio-postgres via native-tls.
+TLS support for opengauss and tokio-opengauss via native-tls.
 
-## postgres-openssl [![Latest Version](https://img.shields.io/crates/v/postgres-openssl.svg)](https://crates.io/crates/postgres-openssl)
+## opengauss-openssl [![Latest Version](https://img.shields.io/crates/v/opengauss-openssl.svg)](https://crates.io/crates/opengauss-openssl)
 
-[Documentation](https://docs.rs/postgres-openssl)
+[Documentation](https://docs.rs/opengauss-openssl)
 
-TLS support for postgres and tokio-postgres via openssl.
+TLS support for opengauss and tokio-opengauss via openssl.
 
 # Running test suite
 
-The test suite requires postgres to be running in the correct configuration. The easiest way to do this is with docker:
+The test suite requires openGauss to be running in the correct configuration. The easiest way to do this is with docker:
 
 1. Install `docker` and `docker-compose`.
    1. On ubuntu: `sudo apt install docker.io docker-compose`.
 1. Make sure your user has permissions for docker.
    1. On ubuntu: ``sudo usermod -aG docker $USER``
-1. Change to top-level directory of `rust-postgres` repo.
+1. Change to top-level directory of `rust-opengauss` repo.
 1. Run `docker-compose up -d`.
 1. Run `cargo test`.
 1. Run `docker-compose stop`.

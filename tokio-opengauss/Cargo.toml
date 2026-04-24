@@ -1,0 +1,104 @@
+[package]
+name = "tokio-opengauss"
+version = "0.7.17"
+authors = ["Steven Fackler <sfackler@gmail.com>"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A native, asynchronous openGauss client"
+repository = "https://github.com/c2j/rust-opengauss"
+readme = "../README.md"
+keywords = ["database", "opengauss", "sql", "async"]
+categories = ["database"]
+rust-version = "1.85"
+
+[lib]
+test = false
+
+[[bench]]
+name = "bench"
+harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = ["runtime"]
+runtime = ["tokio/net", "tokio/time"]
+
+array-impls = ["opengauss-types/array-impls"]
+with-bit-vec-0_6 = ["opengauss-types/with-bit-vec-0_6"]
+with-bit-vec-0_7 = ["opengauss-types/with-bit-vec-0_7"]
+with-bit-vec-0_8 = ["opengauss-types/with-bit-vec-0_8"]
+with-bit-vec-0_9 = ["opengauss-types/with-bit-vec-0_9"]
+with-chrono-0_4 = ["opengauss-types/with-chrono-0_4"]
+with-cidr-0_2 = ["opengauss-types/with-cidr-0_2"]
+with-cidr-0_3 = ["opengauss-types/with-cidr-0_3"]
+with-eui48-0_4 = ["opengauss-types/with-eui48-0_4"]
+with-eui48-1 = ["opengauss-types/with-eui48-1"]
+with-geo-types-0_6 = ["opengauss-types/with-geo-types-0_6"]
+with-geo-types-0_7 = ["opengauss-types/with-geo-types-0_7"]
+with-jiff-0_1 = ["opengauss-types/with-jiff-0_1"]
+with-jiff-0_2 = ["opengauss-types/with-jiff-0_2"]
+with-serde_json-1 = ["opengauss-types/with-serde_json-1"]
+with-smol_str-01 = ["opengauss-types/with-smol_str-01"]
+with-uuid-0_8 = ["opengauss-types/with-uuid-0_8"]
+with-uuid-1 = ["opengauss-types/with-uuid-1"]
+with-time-0_2 = ["opengauss-types/with-time-0_2"]
+with-time-0_3 = ["opengauss-types/with-time-0_3"]
+js = ["opengauss-protocol/js", "opengauss-types/js"]
+
+[dependencies]
+async-trait = "0.1"
+bytes = "1.11"
+byteorder = "1.0"
+fallible-iterator = "0.2"
+futures-channel = { version = "0.3", features = ["sink"] }
+futures-util = { version = "0.3", default-features = false, features = [
+  "sink",
+] }
+log = "0.4"
+parking_lot = "0.12"
+percent-encoding = "2.0"
+pin-project-lite = "0.2.11"
+phf = "0.13"
+opengauss-protocol = { version = "0.6.9", path = "../opengauss-protocol" }
+opengauss-types = { version = "0.2.13", path = "../opengauss-types" }
+tokio = { version = "1.27", features = ["io-util"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+rand = "0.10.0"
+whoami = "2.0.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+socket2 = { version = "0.6", features = ["all"] }
+
+[dev-dependencies]
+futures-util = { version = "0.3", default-features = false, features = [
+  "async-await-macro",
+] }
+futures-executor = "0.3"
+criterion = "0.7"
+env_logger = "0.11"
+tokio = { version = "1.0", features = [
+  "macros",
+  "net",
+  "rt",
+  "rt-multi-thread",
+  "time",
+] }
+
+bit-vec-06 = { version = "0.6", package = "bit-vec" }
+bit-vec-07 = { version = "0.7", package = "bit-vec" }
+bit-vec-08 = { version = "0.8", package = "bit-vec" }
+bit-vec-09 = { version = "0.9", package = "bit-vec" }
+chrono-04 = { version = "0.4", package = "chrono", default-features = false }
+eui48-1 = { version = "1.0", package = "eui48", default-features = false }
+geo-types-06 = { version = "0.6", package = "geo-types" }
+geo-types-07 = { version = "0.7", package = "geo-types" }
+jiff-01 = { version = "0.1", package = "jiff" }
+jiff-02 = { version = "0.2", package = "jiff" }
+serde_json-1 = { version = "1.0", package = "serde_json" }
+smol_str-01 = { version = "0.1", package = "smol_str" }
+uuid-08 = { version = "0.8", package = "uuid" }
+uuid-1 = { version = "1.0", package = "uuid" }
+time-02 = { version = "0.2", package = "time" }
+time-03 = { version = "0.3", package = "time", features = ["parsing"] }

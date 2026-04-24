@@ -5,7 +5,7 @@ use std::io::{BufWriter, Write};
 const ERRCODES_TXT: &str = include_str!("errcodes.txt");
 
 pub fn build() {
-    let mut file = BufWriter::new(File::create("../tokio-postgres/src/error/sqlstate.rs").unwrap());
+    let mut file = BufWriter::new(File::create("../tokio-opengauss/src/error/sqlstate.rs").unwrap());
 
     let codes = parse_codes();
 

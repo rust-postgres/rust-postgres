@@ -1,0 +1,12 @@
+[package]
+name = "opengauss-derive-test"
+version = "0.1.0"
+authors = ["Steven Fackler <sfackler@gmail.com>"]
+edition = "2024"
+rust-version = "1.85"
+
+[dev-dependencies]
+trybuild = "1.0.18"
+
+opengauss-types = { path = "../opengauss-types", features = ["derive"] }
+opengauss = { path = "../opengauss" }
