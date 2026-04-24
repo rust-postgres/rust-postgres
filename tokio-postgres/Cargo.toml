@@ -39,6 +39,7 @@ with-geo-types-0_6 = ["postgres-types/with-geo-types-0_6"]
 with-geo-types-0_7 = ["postgres-types/with-geo-types-0_7"]
 with-jiff-0_1 = ["postgres-types/with-jiff-0_1"]
 with-jiff-0_2 = ["postgres-types/with-jiff-0_2"]
+with-macaddr-1 = ["postgres-types/with-macaddr-1"]
 with-serde_json-1 = ["postgres-types/with-serde_json-1"]
 with-smol_str-01 = ["postgres-types/with-smol_str-01"]
 with-uuid-0_8 = ["postgres-types/with-uuid-0_8"]
@@ -96,6 +97,7 @@ geo-types-06 = { version = "0.6", package = "geo-types" }
 geo-types-07 = { version = "0.7", package = "geo-types" }
 jiff-01 = { version = "0.1", package = "jiff" }
 jiff-02 = { version = "0.2", package = "jiff" }
+macaddr-1 = { version = "1", package = "macaddr"}
 serde_json-1 = { version = "1.0", package = "serde_json" }
 smol_str-01 = { version = "0.1", package = "smol_str" }
 uuid-08 = { version = "0.8", package = "uuid" }

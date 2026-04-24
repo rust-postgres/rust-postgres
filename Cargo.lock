@@ -913,6 +913,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
+name = "macaddr"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baee0bbc17ce759db233beb01648088061bf678383130602a298e6998eedb2d8"
+
+[[package]]
 name = "marksman_escape"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1274,6 +1280,7 @@ dependencies = [
  "geo-types 0.7.18",
  "jiff 0.1.29",
  "jiff 0.2.23",
+ "macaddr",
  "postgres-derive",
  "postgres-protocol",
  "serde_core",
@@ -1912,6 +1919,7 @@ dependencies = [
  "jiff 0.1.29",
  "jiff 0.2.23",
  "log",
+ "macaddr",
  "parking_lot",
  "percent-encoding",
  "phf",

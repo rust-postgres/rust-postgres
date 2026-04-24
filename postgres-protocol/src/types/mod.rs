@@ -438,6 +438,23 @@ pub fn macaddr_from_sql(buf: &[u8]) -> Result<[u8; 6], StdBox<dyn Error + Sync +
     Ok(out)
 }
 
+/// Serializes a `MACADDR8` value.
+#[inline]
+pub fn macaddr8_to_sql(v: [u8; 8], buf: &mut BytesMut) {
+    buf.put_slice(&v);
+}
+
+/// Deserializes a `MACADDR8` value.
+#[inline]
+pub fn macaddr8_from_sql(buf: &[u8]) -> Result<[u8; 8], StdBox<dyn Error + Sync + Send>> {
+    if buf.len() != 8 {
+        return Err("invalid message length: macaddr length mismatch".into());
+    }
+    let mut out = [0; 8];
+    out.copy_from_slice(buf);
+    Ok(out)
+}
+
 /// Serializes a `UUID` value.
 #[inline]
 pub fn uuid_to_sql(v: [u8; 16], buf: &mut BytesMut) {

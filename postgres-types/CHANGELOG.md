@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+### Added
+
+* Added support for `macaddr` 1.x (macaddr and macaddr8 types) via the `with-macaddr-1` feature.
+
 ## v0.2.13 - 2026-03-30
 
 ### Added
