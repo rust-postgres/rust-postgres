@@ -203,6 +203,15 @@ impl<'a> Transaction<'a> {
         self.client.execute_raw(statement, params).await
     }
 
+    /// Like `Client::execute_typed_raw`.
+    pub async fn execute_typed_raw<P, I>(&self, statement: &str, params: I) -> Result<u64, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        self.client.execute_typed_raw(statement, params).await
+    }
+
     /// Binds a statement to a set of parameters, creating a `Portal` which can be incrementally queried.
     ///
     /// Portals only last for the duration of the transaction in which they are created, and can only be used on the
