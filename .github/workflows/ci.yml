@@ -75,7 +75,7 @@ jobs:
         with:
           path: target
           key: check-wasm32-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
-      - run: cargo check --target wasm32-unknown-unknown --manifest-path tokio-opengauss/Cargo.toml --no-default-features --features js
+      - run: cargo check --target wasm32-unknown-unknown --manifest-path crates/tokio-opengauss/Cargo.toml --no-default-features --features js
         env:
           RUSTFLAGS: --cfg getrandom_backend="wasm_js"
 
@@ -104,5 +104,5 @@ jobs:
           path: target
           key: test-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
       - run: cargo test --all
-      - run: cargo test --manifest-path tokio-opengauss/Cargo.toml --no-default-features
-      - run: cargo test --manifest-path tokio-opengauss/Cargo.toml --all-features
+      - run: cargo test --manifest-path crates/tokio-opengauss/Cargo.toml --no-default-features
+      - run: cargo test --manifest-path crates/tokio-opengauss/Cargo.toml --all-features

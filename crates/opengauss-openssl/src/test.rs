@@ -28,7 +28,7 @@ where
 #[tokio::test]
 async fn require() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
+    builder.set_ca_file("../../tests/ssl/server.crt").unwrap();
     let ctx = builder.build();
     smoke_test(
         "user=ssl_user dbname=postgres sslmode=require",
@@ -40,7 +40,7 @@ async fn require() {
 #[tokio::test]
 async fn direct() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
+    builder.set_ca_file("../../tests/ssl/server.crt").unwrap();
     set_postgresql_alpn(&mut builder).unwrap();
     let ctx = builder.build();
     smoke_test(
@@ -53,7 +53,7 @@ async fn direct() {
 #[tokio::test]
 async fn prefer() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
+    builder.set_ca_file("../../tests/ssl/server.crt").unwrap();
     let ctx = builder.build();
     smoke_test(
         "user=ssl_user dbname=postgres",
@@ -65,7 +65,7 @@ async fn prefer() {
 #[tokio::test]
 async fn scram_user() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
+    builder.set_ca_file("../../tests/ssl/server.crt").unwrap();
     let ctx = builder.build();
     smoke_test(
         "user=scram_user password=password dbname=postgres sslmode=require",
@@ -77,7 +77,7 @@ async fn scram_user() {
 #[tokio::test]
 async fn require_channel_binding_err() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
+    builder.set_ca_file("../../tests/ssl/server.crt").unwrap();
     let ctx = builder.build();
     let connector = TlsConnector::new(ctx.configure().unwrap(), "localhost");
 
@@ -91,7 +91,7 @@ async fn require_channel_binding_err() {
 #[tokio::test]
 async fn require_channel_binding_ok() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
+    builder.set_ca_file("../../tests/ssl/server.crt").unwrap();
     let ctx = builder.build();
     smoke_test(
         "user=scram_user password=password dbname=postgres channel_binding=require",
@@ -104,7 +104,7 @@ async fn require_channel_binding_ok() {
 #[cfg(feature = "runtime")]
 async fn runtime() {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-    builder.set_ca_file("../test/server.crt").unwrap();
+    builder.set_ca_file("../../tests/ssl/server.crt").unwrap();
     let connector = MakeTlsConnector::new(builder.build());
 
     let (client, connection) = tokio_opengauss::connect(

@@ -1,12 +1,12 @@
 [package]
-name = "opengauss-openssl"
+name = "opengauss-native-tls"
 version = "0.5.3"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "TLS support for tokio-opengauss via openssl"
+description = "TLS support for tokio-opengauss via native-tls"
 repository = "https://github.com/c2j/rust-opengauss"
-readme = "../README.md"
+readme = "../../README.md"
 rust-version = "1.85"
 
 [features]
@@ -14,9 +14,9 @@ default = ["runtime"]
 runtime = ["tokio-opengauss/runtime"]
 
 [dependencies]
-openssl = "0.10"
+native-tls = { version = "0.2", features = ["alpn"] }
 tokio = "1.0"
-tokio-openssl = "0.6"
+tokio-native-tls = "0.3"
 tokio-opengauss = { version = "0.7.14", path = "../tokio-opengauss", default-features = false }
 
 [dev-dependencies]

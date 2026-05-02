@@ -31,7 +31,7 @@ where
 async fn require() {
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(
-            Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
+            Certificate::from_pem(include_bytes!("../../../tests/ssl/server.crt")).unwrap(),
         )
         .build()
         .unwrap();
@@ -46,7 +46,7 @@ async fn require() {
 async fn direct() {
     let mut builder = native_tls::TlsConnector::builder();
     builder.add_root_certificate(
-        Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
+        Certificate::from_pem(include_bytes!("../../../tests/ssl/server.crt")).unwrap(),
     );
     set_postgresql_alpn(&mut builder);
     let connector = builder.build().unwrap();
@@ -61,7 +61,7 @@ async fn direct() {
 async fn prefer() {
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(
-            Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
+            Certificate::from_pem(include_bytes!("../../../tests/ssl/server.crt")).unwrap(),
         )
         .build()
         .unwrap();
@@ -76,7 +76,7 @@ async fn prefer() {
 async fn scram_user() {
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(
-            Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
+            Certificate::from_pem(include_bytes!("../../../tests/ssl/server.crt")).unwrap(),
         )
         .build()
         .unwrap();
@@ -92,7 +92,7 @@ async fn scram_user() {
 async fn runtime() {
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(
-            Certificate::from_pem(include_bytes!("../../test/server.crt")).unwrap(),
+            Certificate::from_pem(include_bytes!("../../../tests/ssl/server.crt")).unwrap(),
         )
         .build()
         .unwrap();

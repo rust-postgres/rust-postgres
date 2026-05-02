@@ -8,5 +8,5 @@ rust-version = "1.85"
 [dev-dependencies]
 trybuild = "1.0.18"
 
-opengauss-types = { path = "../opengauss-types", features = ["derive"] }
-opengauss = { path = "../opengauss" }
+opengauss-types = { path = "../../crates/opengauss-types", features = ["derive"] }
+opengauss = { path = "../../crates/opengauss" }
