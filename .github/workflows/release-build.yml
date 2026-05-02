@@ -1,0 +1,186 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version override (e.g. 0.1.0)"
+        required: false
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: gaussdb-mcp
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Linux (cross for glibc 2.31 compat) ─────────────
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            cross: true
+            artifact_ext: .tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            cross: true
+            artifact_ext: .tar.gz
+
+          # ── macOS ──────────────────────────────────────────
+          - target: x86_64-apple-darwin
+            os: macos-13
+            cross: false
+            artifact_ext: .tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            cross: false
+            artifact_ext: .tar.gz
+
+          # ── Windows (static CRT for Win7+ compat) ─────────
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            cross: false
+            artifact_ext: .zip
+            rustflags: -C target-feature=+crt-static
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            cross: false
+            artifact_ext: .zip
+            rustflags: -C target-feature=+crt-static
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-registry-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-${{ matrix.target }}-
+
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: build-target-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            build-target-${{ matrix.target }}-
+
+      - name: Install cross
+        if: matrix.cross
+        run: cargo install cross --locked
+
+      - name: Build binary (cross)
+        if: matrix.cross
+        run: cross build --release --target ${{ matrix.target }} -p gaussdb-mcp
+
+      - name: Build binary (native)
+        if: "!matrix.cross"
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+        run: cargo build --release --target ${{ matrix.target }} -p gaussdb-mcp
+
+      - name: Set version
+        id: version
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Package artifact (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ARTIFACT_NAME="${{ env.BINARY_NAME }}-${VERSION}-${{ matrix.target }}"
+          BINARY_PATH="target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}"
+
+          mkdir -p "${ARTIFACT_NAME}"
+          cp "${BINARY_PATH}" "${ARTIFACT_NAME}/"
+          cp README.md "${ARTIFACT_NAME}/" 2>/dev/null || true
+          cp LICENSE-APACHE "${ARTIFACT_NAME}/" 2>/dev/null || true
+          cp LICENSE-MIT "${ARTIFACT_NAME}/" 2>/dev/null || true
+
+          tar czf "${ARTIFACT_NAME}.tar.gz" "${ARTIFACT_NAME}"
+          echo "artifact_file=${ARTIFACT_NAME}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $VERSION = "${{ steps.version.outputs.version }}"
+          $TARGET = "${{ matrix.target }}"
+          $ARTIFACT_NAME = "${{ env.BINARY_NAME }}-${VERSION}-${TARGET}"
+          $BINARY_PATH = "target/${TARGET}/release/${{ env.BINARY_NAME }}.exe"
+
+          New-Item -ItemType Directory -Force -Path $ARTIFACT_NAME
+          Copy-Item $BINARY_PATH -Destination $ARTIFACT_NAME
+          if (Test-Path README.md) { Copy-Item README.md -Destination $ARTIFACT_NAME }
+          if (Test-Path LICENSE-APACHE) { Copy-Item LICENSE-APACHE -Destination $ARTIFACT_NAME }
+          if (Test-Path LICENSE-MIT) { Copy-Item LICENSE-MIT -Destination $ARTIFACT_NAME }
+
+          7z a -tzip "${ARTIFACT_NAME}.zip" $ARTIFACT_NAME
+          echo "artifact_file=${ARTIFACT_NAME}.zip" >> $env:GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BINARY_NAME }}-${{ matrix.target }}
+          path: ${{ env.BINARY_NAME }}-*${{ matrix.artifact_ext }}
+          retention-days: 30
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.BINARY_NAME }}-*${{ matrix.artifact_ext }}
+          generate_release_notes: true
+
+  checksums:
+    name: Generate checksums
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd artifacts
+          shopt -s nullglob
+          FILES=(*.tar.gz *.zip)
+          if [ ${#FILES[@]} -gt 0 ]; then
+            sha256sum "${FILES[@]}" > ../SHA256SUMS.txt
+          fi
+
+      - name: Upload checksums to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SHA256SUMS.txt
