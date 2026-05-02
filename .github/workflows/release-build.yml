@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+      - "gaussdb-mcp-v*"
   workflow_dispatch:
     inputs:
       version:
