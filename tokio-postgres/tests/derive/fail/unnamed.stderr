@@ -1,0 +1,5 @@
+error: #[derive(FromRow)] may only be applied to structs with named fields
+ --> tests/derive/fail/unnamed.rs:4:1
+  |
+4 | struct User(i64);
+  | ^^^^^^^^^^^^^^^^^

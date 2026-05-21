@@ -1,0 +1,5 @@
+error: rename_all is a container attribute
+ --> tests/derive/fail/rename_all_on_field.rs:5:16
+  |
+5 |     #[postgres(rename_all = "camelCase")]
+  |                ^^^^^^^^^^

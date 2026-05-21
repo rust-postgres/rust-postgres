@@ -24,6 +24,7 @@ all-features = true
 [features]
 default = ["runtime"]
 runtime = ["tokio/net", "tokio/time"]
+derive = ["dep:tokio-postgres-derive"]
 
 array-impls = ["postgres-types/array-impls"]
 with-bit-vec-0_6 = ["postgres-types/with-bit-vec-0_6"]
@@ -63,6 +64,7 @@ pin-project-lite = "0.2.11"
 phf = "0.13"
 postgres-protocol = { version = "0.6.9", path = "../postgres-protocol" }
 postgres-types = { version = "0.2.13", path = "../postgres-types" }
+tokio-postgres-derive = { version = "0.1.0", optional = true, path = "../tokio-postgres-derive" }
 tokio = { version = "1.27", features = ["io-util"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 rand = "0.10.0"
@@ -78,6 +80,7 @@ futures-util = { version = "0.3", default-features = false, features = [
 futures-executor = "0.3"
 criterion = "0.7"
 env_logger = "0.11"
+trybuild = "1.0.18"
 tokio = { version = "1.0", features = [
   "macros",
   "net",

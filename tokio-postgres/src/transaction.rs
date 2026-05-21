@@ -7,7 +7,7 @@ use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::types::{BorrowToSql, ToSql, Type};
 use crate::{
-    CancelToken, Client, CopyInSink, Error, Portal, Row, SimpleQueryMessage, Statement,
+    CancelToken, Client, CopyInSink, Error, FromRow, Portal, Row, SimpleQueryMessage, Statement,
     ToStatement, bind, query, slice_iter,
 };
 use bytes::Buf;
@@ -100,6 +100,18 @@ impl<'a> Transaction<'a> {
         self.client.query(statement, params).await
     }
 
+    /// Like `Client::query_as`.
+    pub async fn query_as<T>(
+        &self,
+        statement: &(impl ?Sized + ToStatement),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<T>, Error>
+    where
+        T: for<'row> FromRow<'row>,
+    {
+        self.client.query_as(statement, params).await
+    }
+
     /// Like `Client::query_one`.
     pub async fn query_one<T>(
         &self,
@@ -112,6 +124,18 @@ impl<'a> Transaction<'a> {
         self.client.query_one(statement, params).await
     }
 
+    /// Like `Client::query_one_as`.
+    pub async fn query_one_as<T>(
+        &self,
+        statement: &(impl ?Sized + ToStatement),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<T, Error>
+    where
+        T: for<'row> FromRow<'row>,
+    {
+        self.client.query_one_as(statement, params).await
+    }
+
     /// Like `Client::query_opt`.
     pub async fn query_opt<T>(
         &self,
@@ -122,6 +146,18 @@ impl<'a> Transaction<'a> {
         T: ?Sized + ToStatement,
     {
         self.client.query_opt(statement, params).await
+    }
+
+    /// Like `Client::query_opt_as`.
+    pub async fn query_opt_as<T>(
+        &self,
+        statement: &(impl ?Sized + ToStatement),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<T>, Error>
+    where
+        T: for<'row> FromRow<'row>,
+    {
+        self.client.query_opt_as(statement, params).await
     }
 
     /// Like `Client::query_raw`.

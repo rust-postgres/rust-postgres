@@ -1,0 +1,5 @@
+error: expected a string literal
+ --> tests/derive/fail/non_string_name.rs:5:23
+  |
+5 |     #[postgres(name = 1)]
+  |                       ^

@@ -34,6 +34,45 @@
 //! }
 //! ```
 //!
+//! # Row Mapping
+//!
+//! The [`FromRow`] trait maps a query row into a user-defined Rust type by using the same
+//! [`Row::try_get`] cell decoding behavior users would write by hand. With the `derive` feature
+//! enabled, named structs can derive that implementation:
+//!
+//! ```no_run
+//! # #[cfg(all(feature = "runtime", feature = "derive"))]
+//! # async fn run() -> Result<(), tokio_postgres::Error> {
+//! use tokio_postgres::{FromRow, NoTls};
+//!
+//! #[derive(FromRow)]
+//! struct User {
+//!     id: i64,
+//!     name: String,
+//! }
+//!
+//! let (client, connection) =
+//!     tokio_postgres::connect("host=localhost user=postgres", NoTls).await?;
+//!
+//! tokio::spawn(async move {
+//!     if let Err(e) = connection.await {
+//!         eprintln!("connection error: {}", e);
+//!     }
+//! });
+//!
+//! let user = client
+//!     .query_one_as::<User>("SELECT id, name FROM users WHERE id = $1", &[&1i64])
+//!     .await?;
+//! # let _ = (&user.id, &user.name);
+//!
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! The `query_as`, `query_one_as`, and `query_opt_as` convenience methods return owned values and
+//! cannot be used with mappings that borrow from rows. Borrowed mappings should call
+//! [`FromRow::from_row`] directly while the row is still alive.
+//!
 //! # Behavior
 //!
 //! Calling a method like `Client::query` on its own does nothing. The associated request is not sent to the database
@@ -104,6 +143,7 @@
 //! | Feature | Description | Extra dependencies | Default |
 //! | ------- | ----------- | ------------------ | ------- |
 //! | `runtime` | Enable convenience API for the connection process based on the `tokio` crate. | [tokio](https://crates.io/crates/tokio) 1.0 with the features `net` and `time` | yes |
+//! | `derive` | Enable `#[derive(FromRow)]`. | [tokio-postgres-derive](https://crates.io/crates/tokio-postgres-derive) | no |
 //! | `array-impls` | Enables `ToSql` and `FromSql` trait impls for arrays | - | no |
 //! | `with-bit-vec-0_6` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.6 | no |
 //! | `with-bit-vec-0_7` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.7 | no |
@@ -135,7 +175,7 @@ pub use crate::error::Error;
 pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
-pub use crate::row::{Row, SimpleQueryRow};
+pub use crate::row::{FromRow, Row, SimpleQueryRow};
 pub use crate::simple_query::{SimpleColumn, SimpleQueryStream};
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
@@ -149,6 +189,8 @@ pub use crate::transaction_builder::{IsolationLevel, TransactionBuilder};
 use crate::types::ToSql;
 pub use fallible_iterator;
 use std::sync::Arc;
+#[cfg(feature = "derive")]
+pub use tokio_postgres_derive::FromRow;
 
 pub mod binary_copy;
 mod bind;

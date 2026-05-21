@@ -1,0 +1,5 @@
+error: expected a string literal
+ --> tests/derive/fail/non_string_rename_all.rs:4:25
+  |
+4 | #[postgres(rename_all = 1)]
+  |                         ^
