@@ -332,6 +332,19 @@ impl Client {
     ///
     /// This method returns an owned value and cannot be used with mappings that borrow from rows.
     /// Borrowed mappings should call [`FromRow::from_row`] directly while the [`Row`] is alive.
+    ///
+    /// ```compile_fail
+    /// use tokio_postgres::FromRow;
+    ///
+    /// #[derive(FromRow)]
+    /// struct User<'a> {
+    ///     name: &'a str,
+    /// }
+    ///
+    /// async fn load(client: &tokio_postgres::Client) -> Result<User<'_>, tokio_postgres::Error> {
+    ///     client.query_one_as::<User<'_>>("SELECT name FROM users", &[]).await
+    /// }
+    /// ```
     pub async fn query_one_as<R>(
         &self,
         statement: &(impl ?Sized + ToStatement),
