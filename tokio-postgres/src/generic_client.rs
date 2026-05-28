@@ -1,7 +1,6 @@
 use crate::query::RowStream;
 use crate::types::{BorrowToSql, ToSql, Type};
 use crate::{Client, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction};
-use async_trait::async_trait;
 
 mod private {
     pub trait Sealed {}
@@ -10,15 +9,22 @@ mod private {
 /// A trait allowing abstraction over connections and transactions.
 ///
 /// This trait is "sealed", and cannot be implemented outside of this crate.
-#[async_trait]
 pub trait GenericClient: private::Sealed {
     /// Like [`Client::execute`].
-    async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
+    fn execute<T>(
+        &self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> impl Future<Output = Result<u64, Error>> + Send
     where
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like [`Client::execute_raw`].
-    async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
+    fn execute_raw<P, I, T>(
+        &self,
+        statement: &T,
+        params: I,
+    ) -> impl Future<Output = Result<u64, Error>> + Send
     where
         T: ?Sized + ToStatement + Sync + Send,
         P: BorrowToSql,
@@ -26,37 +32,45 @@ pub trait GenericClient: private::Sealed {
         I::IntoIter: ExactSizeIterator;
 
     /// Like [`Client::execute_typed`].
-    async fn execute_typed(
+    fn execute_typed(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
-    ) -> Result<u64, Error>;
+    ) -> impl Future<Output = Result<u64, Error>> + Send;
 
     /// Like [`Client::query`].
-    async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
+    fn query<T>(
+        &self,
+        query: &T,
+        params: &[&(dyn ToSql + Sync)],
+    ) -> impl Future<Output = Result<Vec<Row>, Error>> + Send
     where
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like [`Client::query_one`].
-    async fn query_one<T>(
+    fn query_one<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Row, Error>
+    ) -> impl Future<Output = Result<Row, Error>> + Send
     where
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like [`Client::query_opt`].
-    async fn query_opt<T>(
+    fn query_opt<T>(
         &self,
         statement: &T,
         params: &[&(dyn ToSql + Sync)],
-    ) -> Result<Option<Row>, Error>
+    ) -> impl Future<Output = Result<Option<Row>, Error>> + Send
     where
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like [`Client::query_raw`].
-    async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
+    fn query_raw<T, P, I>(
+        &self,
+        statement: &T,
+        params: I,
+    ) -> impl Future<Output = Result<RowStream, Error>> + Send
     where
         T: ?Sized + ToStatement + Sync + Send,
         P: BorrowToSql,
@@ -64,50 +78,58 @@ pub trait GenericClient: private::Sealed {
         I::IntoIter: ExactSizeIterator;
 
     /// Like [`Client::query_typed`]
-    async fn query_typed(
+    fn query_typed(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
-    ) -> Result<Vec<Row>, Error>;
+    ) -> impl Future<Output = Result<Vec<Row>, Error>> + Send;
 
-    /// Like [`Client::query_one_typed`].
-    async fn query_typed_one(
+    /// Like [`Client::query_typed_one`].
+    fn query_typed_one(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
-    ) -> Result<Row, Error>;
+    ) -> impl Future<Output = Result<Row, Error>> + Send;
 
     /// Like [`Client::query_opt_typed`].
-    async fn query_typed_opt(
+    fn query_typed_opt(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
-    ) -> Result<Option<Row>, Error>;
+    ) -> impl Future<Output = Result<Option<Row>, Error>> + Send;
 
     /// Like [`Client::query_typed_raw`]
-    async fn query_typed_raw<P, I>(&self, statement: &str, params: I) -> Result<RowStream, Error>
+    fn query_typed_raw<P, I>(
+        &self,
+        statement: &str,
+        params: I,
+    ) -> impl Future<Output = Result<RowStream, Error>> + Send
     where
         P: BorrowToSql,
         I: IntoIterator<Item = (P, Type)> + Sync + Send;
 
     /// Like [`Client::prepare`].
-    async fn prepare(&self, query: &str) -> Result<Statement, Error>;
+    fn prepare(&self, query: &str) -> impl Future<Output = Result<Statement, Error>> + Send;
 
     /// Like [`Client::prepare_typed`].
-    async fn prepare_typed(
+    fn prepare_typed(
         &self,
         query: &str,
         parameter_types: &[Type],
-    ) -> Result<Statement, Error>;
+    ) -> impl Future<Output = Result<Statement, Error>> + Send;
 
     /// Like [`Client::transaction`].
-    async fn transaction<'a>(&'a mut self) -> Result<Transaction<'a>, Error>;
+    fn transaction<'a>(&'a mut self)
+    -> impl Future<Output = Result<Transaction<'a>, Error>> + Send;
 
     /// Like [`Client::batch_execute`].
-    async fn batch_execute(&self, query: &str) -> Result<(), Error>;
+    fn batch_execute(&self, query: &str) -> impl Future<Output = Result<(), Error>> + Send;
 
     /// Like [`Client::simple_query`].
-    async fn simple_query(&self, query: &str) -> Result<Vec<SimpleQueryMessage>, Error>;
+    fn simple_query(
+        &self,
+        query: &str,
+    ) -> impl Future<Output = Result<Vec<SimpleQueryMessage>, Error>> + Send;
 
     /// Returns a reference to the underlying [`Client`].
     fn client(&self) -> &Client;
@@ -115,7 +137,6 @@ pub trait GenericClient: private::Sealed {
 
 impl private::Sealed for Client {}
 
-#[async_trait]
 impl GenericClient for Client {
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
@@ -245,8 +266,6 @@ impl GenericClient for Client {
 
 impl private::Sealed for Transaction<'_> {}
 
-#[async_trait]
-#[allow(clippy::needless_lifetimes)]
 impl GenericClient for Transaction<'_> {
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
@@ -349,7 +368,6 @@ impl GenericClient for Transaction<'_> {
         self.prepare_typed(query, parameter_types).await
     }
 
-    #[allow(clippy::needless_lifetimes)]
     async fn transaction<'a>(&'a mut self) -> Result<Transaction<'a>, Error> {
         self.transaction().await
     }
