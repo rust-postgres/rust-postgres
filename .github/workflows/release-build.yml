@@ -12,6 +12,9 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
   BINARY_NAME: gaussdb-mcp
