@@ -20,29 +20,59 @@ env:
   BINARY_NAME: gaussdb-mcp
 
 jobs:
-  build:
-    name: Build ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+  build-linux-x86_64:
+    name: Build linux-x86_64 (glibc ≥ 2.17)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            cross: true
-            artifact_ext: .tar.gz
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            cross: true
-            artifact_ext: .tar.gz
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            cross: false
-            artifact_ext: .zip
-            rustflags: -C target-feature=+crt-static
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: "0.13.0"
+
+      - name: Install cargo-zigbuild
+        run: cargo install cargo-zigbuild
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev
+
+      - name: Build
+        run: cargo zigbuild --release -p gaussdb-mcp --target x86_64-unknown-linux-gnu.2.17
+
+      - name: Strip
+        run: strip --strip-unneeded target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
+
+      - name: Set version
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#gaussdb-mcp-v}"
+          VERSION="${VERSION#v}"
+          [ -n "${{ inputs.version }}" ] && VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Package
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ARTIFACT_NAME="${{ env.BINARY_NAME }}-${VERSION}-x86_64-unknown-linux-gnu"
+          mkdir -p "${ARTIFACT_NAME}"
+          cp "target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}" "${ARTIFACT_NAME}/"
+          cp README.md "${ARTIFACT_NAME}/" 2>/dev/null || true
+          tar czf "${ARTIFACT_NAME}.tar.gz" "${ARTIFACT_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gaussdb-mcp-linux-x86_64
+          path: "*.tar.gz"
+
+  build-linux-arm64:
+    name: Build linux-arm64 (glibc ≥ 2.17)
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,109 +80,106 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: aarch64-unknown-linux-gnu
 
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
         with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: cargo-registry-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            cargo-registry-${{ matrix.target }}-
+          version: "0.13.0"
 
-      - name: Cache target directory
-        uses: actions/cache@v4
+      - name: Install cargo-zigbuild
+        run: cargo install cargo-zigbuild
+
+      - name: Install system deps (arm64)
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev:arm64
+
+      - name: Build
+        env:
+          PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
+          PKG_CONFIG_ALLOW_CROSS: 1
+        run: cargo zigbuild --release -p gaussdb-mcp --target aarch64-unknown-linux-gnu.2.17
+
+      - name: Strip
+        run: |
+          sudo apt-get install -y binutils-aarch64-linux-gnu
+          aarch64-linux-gnu-strip --strip-unneeded target/aarch64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
+
+      - name: Set version
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#gaussdb-mcp-v}"
+          VERSION="${VERSION#v}"
+          [ -n "${{ inputs.version }}" ] && VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Package
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ARTIFACT_NAME="${{ env.BINARY_NAME }}-${VERSION}-aarch64-unknown-linux-gnu"
+          mkdir -p "${ARTIFACT_NAME}"
+          cp "target/aarch64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}" "${ARTIFACT_NAME}/"
+          cp README.md "${ARTIFACT_NAME}/" 2>/dev/null || true
+          tar czf "${ARTIFACT_NAME}.tar.gz" "${ARTIFACT_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          path: target
-          key: build-target-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            build-target-${{ matrix.target }}-
+          name: gaussdb-mcp-linux-arm64
+          path: "*.tar.gz"
 
-      - name: Install cross
-        if: matrix.cross
-        run: cargo install cross --locked
+  build-windows-x86_64:
+    name: Build windows-x86_64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Build binary (cross)
-        if: matrix.cross
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build
+        run: cargo build --release -p gaussdb-mcp --target x86_64-pc-windows-msvc
         env:
-          CROSS_CONFIG: Cross.release.toml
-        run: cross build --release --target ${{ matrix.target }} -p gaussdb-mcp
-
-      - name: Build binary (native)
-        if: "!matrix.cross"
-        env:
-          RUSTFLAGS: ${{ matrix.rustflags }}
-        run: cargo build --release --target ${{ matrix.target }} -p gaussdb-mcp
+          RUSTFLAGS: "-C target-feature=+crt-static"
 
       - name: Set version
         id: version
         shell: bash
         run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
-          else
-            VERSION="${GITHUB_REF_NAME#v}"
-          fi
+          VERSION="${GITHUB_REF_NAME#gaussdb-mcp-v}"
+          VERSION="${VERSION#v}"
+          [ -n "${{ inputs.version }}" ] && VERSION="${{ inputs.version }}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Package artifact (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          ARTIFACT_NAME="${{ env.BINARY_NAME }}-${VERSION}-${{ matrix.target }}"
-          BINARY_PATH="target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}"
-
-          mkdir -p "${ARTIFACT_NAME}"
-          cp "${BINARY_PATH}" "${ARTIFACT_NAME}/"
-          cp README.md "${ARTIFACT_NAME}/" 2>/dev/null || true
-          cp LICENSE-APACHE "${ARTIFACT_NAME}/" 2>/dev/null || true
-          cp LICENSE-MIT "${ARTIFACT_NAME}/" 2>/dev/null || true
-
-          tar czf "${ARTIFACT_NAME}.tar.gz" "${ARTIFACT_NAME}"
-          echo "artifact_file=${ARTIFACT_NAME}.tar.gz" >> "$GITHUB_ENV"
-
-      - name: Package artifact (Windows)
-        if: runner.os == 'Windows'
+      - name: Package
         shell: pwsh
         run: |
           $VERSION = "${{ steps.version.outputs.version }}"
-          $TARGET = "${{ matrix.target }}"
-          $ARTIFACT_NAME = "${{ env.BINARY_NAME }}-${VERSION}-${TARGET}"
-          $BINARY_PATH = "target/${TARGET}/release/${{ env.BINARY_NAME }}.exe"
-
+          $ARTIFACT_NAME = "${{ env.BINARY_NAME }}-${VERSION}-x86_64-pc-windows-msvc"
           New-Item -ItemType Directory -Force -Path $ARTIFACT_NAME
-          Copy-Item $BINARY_PATH -Destination $ARTIFACT_NAME
+          Copy-Item "target/x86_64-pc-windows-msvc/release/${{ env.BINARY_NAME }}.exe" -Destination $ARTIFACT_NAME
           if (Test-Path README.md) { Copy-Item README.md -Destination $ARTIFACT_NAME }
-          if (Test-Path LICENSE-APACHE) { Copy-Item LICENSE-APACHE -Destination $ARTIFACT_NAME }
-          if (Test-Path LICENSE-MIT) { Copy-Item LICENSE-MIT -Destination $ARTIFACT_NAME }
-
-          7z a -tzip "${ARTIFACT_NAME}.zip" $ARTIFACT_NAME
-          echo "artifact_file=${ARTIFACT_NAME}.zip" >> $env:GITHUB_ENV
+          Compress-Archive -Path $ARTIFACT_NAME -DestinationPath "${ARTIFACT_NAME}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.BINARY_NAME }}-${{ matrix.target }}
-          path: ${{ env.BINARY_NAME }}-*${{ matrix.artifact_ext }}
-          retention-days: 30
+          name: gaussdb-mcp-windows-x86_64
+          path: "*.zip"
 
-      - name: Upload to release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ env.BINARY_NAME }}-*${{ matrix.artifact_ext }}
-          generate_release_notes: true
-
-  checksums:
-    name: Generate checksums
-    needs: build
+  release:
+    name: Create GitHub Release
+    needs: [build-linux-x86_64, build-linux-arm64, build-windows-x86_64]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -168,7 +195,22 @@ jobs:
             sha256sum "${FILES[@]}" > ../SHA256SUMS.txt
           fi
 
-      - name: Upload checksums to release
+      - name: Determine tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="gaussdb-mcp-v${{ inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: SHA256SUMS.txt
+          tag_name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+            SHA256SUMS.txt
