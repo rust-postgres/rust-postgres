@@ -41,6 +41,11 @@ enum PasswordSource {
     None,
 }
 
+enum LazyResolvedConfig {
+    Ready(ResolvedConfig),
+    Pending(Arc<dyn (Fn() -> Result<String, String>) + Send + Sync>),
+}
+
 impl Config {
     fn keyring_username(&self) -> String {
         match (&self.user, &self.host, &self.dbname) {
@@ -315,6 +320,150 @@ fn resolve_connection_url_inner(_allow_keyring_diag: bool) -> Result<ResolvedCon
     })
 }
 
+fn resolve_connection_url_lazy() -> LazyResolvedConfig {
+    resolve_connection_url_lazy_inner().unwrap_or_else(|e| {
+        eprintln!("error: {}", e);
+        std::process::exit(1);
+    })
+}
+
+fn resolve_connection_url_lazy_inner() -> Result<LazyResolvedConfig, String> {
+    // 1. Environment variable (highest priority) - no keychain needed
+    if let Ok(url) = std::env::var("GAUSSDB_URL").or_else(|_| std::env::var("DATABASE_URL")) {
+        return Ok(LazyResolvedConfig::Ready(ResolvedConfig {
+            connection_url: url,
+            config_path: None,
+            plaintext_password: None,
+            keyring_username: String::new(),
+            password_source: PasswordSource::EnvVar,
+        }));
+    }
+
+    // 2. --config <path> CLI argument
+    let args: Vec<String> = std::env::args().collect();
+    let config_path = if let Some(pos) = args.iter().position(|a| a == "--config") {
+        args.get(pos + 1)
+            .map(PathBuf::from)
+            .ok_or_else(|| "--config requires a file path argument".to_string())?
+    } else {
+        // 3. Default config file ~/.gaussdb-mcp.toml
+        match default_config_path() {
+            Some(p) if p.exists() => p,
+            _ => {
+                return Err(
+                    "No connection configuration found. Use one of:\n\
+                     \n\
+                     \u{20} 1. Set GAUSSDB_URL or DATABASE_URL environment variable\n\
+                     \u{20}    export GAUSSDB_URL=\"host=localhost user=postgres password=secret dbname=mydb\"\n\
+                     \n\
+                     \u{20} 2. Create ~/.gaussdb-mcp.toml config file:\n\
+                     \u{20}    host = \"localhost\"\n\
+                     \u{20}    user = \"postgres\"\n\
+                     \u{20}    password = \"secret\"\n\
+                     \u{20}    dbname = \"mydb\"\n\
+                     \n\
+                     \u{20} 3. Pass --config <path> to specify a config file\n\
+                     \n\
+                     \u{20} Password will be migrated to OS keychain on first successful connection."
+                        .to_string(),
+                );
+            }
+        }
+    };
+
+    let content = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("failed to read config file {}: {}", config_path.display(), e))?;
+
+    let config: Config = toml::from_str(&content)
+        .map_err(|e| format!("failed to parse config file {}: {}", config_path.display(), e))?;
+
+    let keyring_user = config.keyring_username();
+
+    if let Some(ref url) = config.url {
+        return Ok(LazyResolvedConfig::Ready(ResolvedConfig {
+            connection_url: url.clone(),
+            config_path: Some(config_path),
+            plaintext_password: None,
+            keyring_username: keyring_user,
+            password_source: PasswordSource::Plaintext,
+        }));
+    }
+
+    let is_sentinel = config.password.as_deref() == Some(KEYRING_SENTINEL);
+    let is_plaintext = config.password
+        .as_ref()
+        .is_some_and(|p| p != KEYRING_SENTINEL);
+
+    if is_plaintext {
+        let plaintext_password = config.password.clone();
+        let connection_url = config.to_connection_url().ok_or_else(|| {
+            format!(
+                "config file {} must contain either `url` or at least `host`/`user` fields",
+                config_path.display()
+            )
+        })?;
+        Ok(LazyResolvedConfig::Ready(ResolvedConfig {
+            connection_url,
+            config_path: Some(config_path),
+            plaintext_password,
+            keyring_username: keyring_user,
+            password_source: PasswordSource::Plaintext,
+        }))
+    } else {
+        let password_source = if is_sentinel {
+            PasswordSource::Keyring
+        } else {
+            PasswordSource::None
+        };
+
+        let host = config.host.clone();
+        let port = config.port;
+        let user = config.user.clone();
+        let dbname = config.dbname.clone();
+        let sslmode = config.sslmode.clone();
+
+        if host.is_none() && user.is_none() {
+            return Err(format!(
+                "config file {} must contain either `url` or at least `host`/`user` fields",
+                config_path.display()
+            ));
+        }
+
+        let resolver = Arc::new(move || {
+            let password = match password_source {
+                PasswordSource::Keyring => Some(read_keyring_password(&keyring_user)?),
+                PasswordSource::None => None,
+                _ => unreachable!(),
+            };
+
+            let mut parts = Vec::new();
+            if let Some(ref h) = host {
+                parts.push(format!("host={}", h));
+            }
+            if let Some(p) = port {
+                parts.push(format!("port={}", p));
+            }
+            if let Some(ref u) = user {
+                parts.push(format!("user={}", u));
+            }
+            if let Some(pw) = password {
+                parts.push(format!("password={}", pw));
+            }
+            if let Some(ref d) = dbname {
+                parts.push(format!("dbname={}", d));
+            }
+            if let Some(ref s) = sslmode {
+                parts.push(format!("sslmode={}", s));
+            }
+
+            Ok(parts.join(" "))
+        });
+
+        info!("keychain read deferred until first tool invocation");
+        Ok(LazyResolvedConfig::Pending(resolver))
+    }
+}
+
 fn init_logging() {
     let log_dir = dirs::data_local_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -566,39 +715,57 @@ async fn main() {
         return;
     }
 
-    info!("resolving connection configuration");
-    let resolved = resolve_connection_url_or_check();
-
     if args.iter().any(|a| a == "--check-connection") {
+        let resolved = resolve_connection_url_or_check();
         handle_check_connection(&resolved).await;
         return;
     }
 
-    let server = server::GaussdbMcp::new_disconnected(resolved.connection_url);
+    let server = match resolve_connection_url_lazy() {
+        LazyResolvedConfig::Ready(resolved) => {
+            let server = server::GaussdbMcp::new_disconnected(resolved.connection_url);
 
-    let on_connected = {
-        let config_path = resolved.config_path;
-        let plaintext_password = Arc::new(resolved.plaintext_password);
-        let keyring_username = Arc::new(resolved.keyring_username);
-        let migrated = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        Arc::new(move || {
-            if migrated.load(std::sync::atomic::Ordering::Relaxed) {
-                return;
-            }
-            if let (Some(path), Some(plaintext)) = (&config_path, plaintext_password.as_ref()) {
-                migrated.store(true, std::sync::atomic::Ordering::Relaxed);
-                info!("migrating plaintext password to OS keychain");
-                if let Err(e) = store_keyring_password(&keyring_username, plaintext) {
-                    warn!("failed to store password in keychain: {} (config file NOT modified)", e);
-                } else if let Err(e) = rewrite_password_to_sentinel(path) {
-                    warn!("failed to update config file: {}", e);
-                } else {
-                    info!("password migrated to OS keychain, config updated");
-                }
-            }
-        })
+            let on_connected = {
+                let config_path = resolved.config_path;
+                let plaintext_password = Arc::new(resolved.plaintext_password);
+                let keyring_username = Arc::new(resolved.keyring_username);
+                let migrated = Arc::new(std::sync::atomic::AtomicBool::new(false));
+                Arc::new(move || {
+                    if migrated.load(std::sync::atomic::Ordering::Relaxed) {
+                        return;
+                    }
+                    if let (Some(path), Some(plaintext)) =
+                        (&config_path, plaintext_password.as_ref())
+                    {
+                        migrated.store(true, std::sync::atomic::Ordering::Relaxed);
+                        info!("migrating plaintext password to OS keychain");
+                        if let Err(e) = store_keyring_password(&keyring_username, plaintext) {
+                            warn!(
+                                "failed to store password in keychain: {} (config file NOT modified)",
+                                e
+                            );
+                        } else if let Err(e) = rewrite_password_to_sentinel(path) {
+                            warn!("failed to update config file: {}", e);
+                        } else {
+                            info!("password migrated to OS keychain, config updated");
+                        }
+                    }
+                })
+            };
+            let server = Arc::new(server.on_connected(on_connected));
+
+            let probe = Arc::clone(&server);
+            tokio::spawn(async move {
+                probe.try_connect().await;
+            });
+
+            server
+        }
+        LazyResolvedConfig::Pending(resolver) => {
+            info!("keychain read deferred, using lazy connection");
+            Arc::new(server::GaussdbMcp::new_lazy(resolver))
+        }
     };
-    let server = Arc::new(server.on_connected(on_connected));
 
     info!("starting MCP server on stdio");
 
@@ -610,11 +777,7 @@ async fn main() {
             panic!("Failed to start MCP server: {}", e);
         });
 
-    info!("MCP server ready, probing database connection");
-    let probe = Arc::clone(&server);
-    tokio::spawn(async move {
-        probe.try_connect().await;
-    });
+    info!("MCP server ready");
 
     service.waiting().await.unwrap_or_else(|e| {
         error!("MCP server error: {}", e);

@@ -1060,6 +1060,7 @@ dependencies = [
  "keyring",
  "native-tls",
  "opengauss-native-tls",
+ "openssl",
  "rmcp",
  "schemars",
  "serde",
@@ -1791,6 +1792,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
+name = "openssl-src"
+version = "300.5.5+3.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f1787d533e03597a7934fd0a765f0d28e94ecc5fb7789f8053b1e699a56f709"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "openssl-sys"
 version = "0.9.114"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1798,6 +1808,7 @@ checksum = "13ce1245cd07fcc4cfdb438f7507b0c7e4f3849a69fd84d52374c66d83741bb6"
 dependencies = [
  "cc",
  "libc",
+ "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
