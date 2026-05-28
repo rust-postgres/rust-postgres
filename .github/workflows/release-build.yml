@@ -93,6 +93,8 @@ jobs:
       - name: Install system deps (arm64)
         run: |
           sudo dpkg --add-architecture arm64
+          sudo find /etc/apt -name '*.list' -exec sed -i '/arch=/!s/^deb /deb [arch=amd64] /' {} \;
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted" | sudo tee /etc/apt/sources.list.d/arm64.list
           sudo apt-get update
           sudo apt-get install -y libdbus-1-dev:arm64
 
