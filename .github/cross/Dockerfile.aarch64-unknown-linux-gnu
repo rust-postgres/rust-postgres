@@ -1,0 +1,4 @@
+# manylinux2014 (CentOS 7, glibc 2.17) with aarch64 cross-compilation toolchain.
+# Binaries built here will run on any aarch64 system with glibc >= 2.17,
+# which covers glibc 2.22+ as required.
+FROM messense/manylinux2014-cross:aarch64

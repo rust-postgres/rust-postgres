@@ -26,33 +26,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ── Linux (cross for glibc 2.31 compat) ─────────────
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-22.04
+            os: ubuntu-latest
             cross: true
             artifact_ext: .tar.gz
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-22.04
+            os: ubuntu-latest
             cross: true
             artifact_ext: .tar.gz
-
-          # ── macOS ──────────────────────────────────────────
-          - target: x86_64-apple-darwin
-            os: macos-13
-            cross: false
-            artifact_ext: .tar.gz
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            cross: false
-            artifact_ext: .tar.gz
-
-          # ── Windows (static CRT for Win7+ compat) ─────────
           - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            cross: false
-            artifact_ext: .zip
-            rustflags: -C target-feature=+crt-static
-          - target: aarch64-pc-windows-msvc
             os: windows-latest
             cross: false
             artifact_ext: .zip
@@ -92,6 +74,8 @@ jobs:
 
       - name: Build binary (cross)
         if: matrix.cross
+        env:
+          CROSS_CONFIG: Cross.release.toml
         run: cross build --release --target ${{ matrix.target }} -p gaussdb-mcp
 
       - name: Build binary (native)
@@ -154,7 +138,7 @@ jobs:
           retention-days: 30
 
       - name: Upload to release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.BINARY_NAME }}-*${{ matrix.artifact_ext }}
@@ -164,7 +148,7 @@ jobs:
     name: Generate checksums
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4

@@ -1,0 +1,10 @@
+# Cross configuration for CI release builds.
+# Uses CentOS 7-based Dockerfiles (glibc 2.17) for maximum Linux compatibility.
+# This file is referenced via CROSS_CONFIG env var in the release workflow.
+# Local development continues to use the default Cross.toml (Ubuntu-based images).
+
+[target.x86_64-unknown-linux-gnu]
+dockerfile = ".github/cross/Dockerfile.x86_64-unknown-linux-gnu"
+
+[target.aarch64-unknown-linux-gnu]
+dockerfile = ".github/cross/Dockerfile.aarch64-unknown-linux-gnu"
