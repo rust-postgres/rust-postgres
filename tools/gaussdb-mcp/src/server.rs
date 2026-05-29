@@ -4,6 +4,7 @@ use rmcp::{
     tool, tool_handler, tool_router, ServerHandler,
 };
 use serde_json::json;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_opengauss::Row;
@@ -340,14 +341,24 @@ fn query_error(tool: &str, sql: &str, err: &tokio_opengauss::Error) -> McpError 
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct ConnectionNameParams {
+    #[serde(default)]
+    pub connection_name: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetTableMetadataParams {
     pub table_name: String,
     pub schema_name: Option<String>,
+    #[serde(default)]
+    pub connection_name: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExecuteQueryParams {
     pub sql: String,
+    #[serde(default)]
+    pub connection_name: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -355,6 +366,8 @@ pub struct GetExecutionPlanParams {
     pub sql: String,
     pub analyze: Option<bool>,
     pub format: Option<String>,
+    #[serde(default)]
+    pub connection_name: Option<String>,
 }
 
 enum ConnectionState {
@@ -365,8 +378,9 @@ enum ConnectionState {
 }
 
 pub struct GaussdbMcp {
-    state: Arc<Mutex<ConnectionState>>,
-    on_connected: Option<Arc<dyn Fn() + Send + Sync>>,
+    connections: Arc<Mutex<HashMap<String, ConnectionState>>>,
+    default_name: String,
+    on_connected: HashMap<String, Arc<dyn Fn() + Send + Sync>>,
 }
 
 fn needs_tls(url: &str) -> bool {
@@ -405,109 +419,169 @@ async fn do_connect(url: &str) -> Result<(Arc<tokio_opengauss::Client>, tokio::t
 }
 
 impl GaussdbMcp {
-    pub fn new_disconnected(url: String) -> Self {
+    /// Create a multi-connection server with eager (pre-resolved) URLs.
+    pub fn new_multi_disconnected(entries: Vec<(String, String)>, default_name: String) -> Self {
+        let mut connections = HashMap::new();
+        for (name, url) in entries {
+            connections.insert(name, ConnectionState::Connecting(url));
+        }
         Self {
-            state: Arc::new(Mutex::new(ConnectionState::Connecting(url))),
-            on_connected: None,
+            connections: Arc::new(Mutex::new(connections)),
+            default_name,
+            on_connected: HashMap::new(),
         }
     }
 
-    pub fn new_lazy(resolver: Arc<dyn (Fn() -> Result<String, String>) + Send + Sync>) -> Self {
-        Self {
-            state: Arc::new(Mutex::new(ConnectionState::Pending(resolver))),
-            on_connected: None,
+    /// Create a multi-connection server with lazy resolvers (deferred keychain reads).
+    pub fn new_multi_lazy(
+        entries: Vec<(String, Arc<dyn (Fn() -> Result<String, String>) + Send + Sync>)>,
+        default_name: String,
+    ) -> Self {
+        let mut connections = HashMap::new();
+        for (name, resolver) in entries {
+            connections.insert(name, ConnectionState::Pending(resolver));
         }
+        Self {
+            connections: Arc::new(Mutex::new(connections)),
+            default_name,
+            on_connected: HashMap::new(),
+        }
+    }
+
+    /// Backward-compatible: single connection, eager URL.
+    #[allow(dead_code)]
+    pub fn new_disconnected(url: String) -> Self {
+        Self::new_multi_disconnected(vec![("default".to_string(), url)], "default".to_string())
+    }
+
+    /// Backward-compatible: single connection, lazy resolver.
+    #[allow(dead_code)]
+    pub fn new_lazy(resolver: Arc<dyn (Fn() -> Result<String, String>) + Send + Sync>) -> Self {
+        Self::new_multi_lazy(vec![("default".to_string(), resolver)], "default".to_string())
     }
 
     #[allow(dead_code)]
     pub(crate) fn new(client: tokio_opengauss::Client) -> Self {
+        let mut connections = HashMap::new();
+        connections.insert("default".to_string(), ConnectionState::Connected(Arc::new(client)));
         Self {
-            state: Arc::new(Mutex::new(ConnectionState::Connected(Arc::new(client)))),
-            on_connected: None,
+            connections: Arc::new(Mutex::new(connections)),
+            default_name: "default".to_string(),
+            on_connected: HashMap::new(),
         }
     }
 
+    /// Register a per-connection callback fired on first successful connect.
+    pub fn set_on_connected(&mut self, name: String, callback: Arc<dyn Fn() + Send + Sync>) {
+        self.on_connected.insert(name, callback);
+    }
+
+    /// Backward-compatible builder: sets callback for the default connection.
+    #[allow(dead_code)]
     pub fn on_connected(mut self, callback: Arc<dyn Fn() + Send + Sync>) -> Self {
-        self.on_connected = Some(callback);
+        self.on_connected.insert(self.default_name.clone(), callback);
         self
     }
 
+    /// Probe the default connection at startup.
     pub async fn try_connect(&self) {
-        let url = {
-            let state = self.state.lock().await;
-            match &*state {
-                ConnectionState::Connecting(url) => url.clone(),
+        let (name, url) = {
+            let conns = self.connections.lock().await;
+            match conns.get(&self.default_name) {
+                Some(ConnectionState::Connecting(url)) => (self.default_name.clone(), url.clone()),
                 _ => return,
             }
         };
 
-        info!("probing database connection at startup");
+        info!("probing database connection '{}' at startup", name);
         let result = do_connect(&url).await;
 
-        let mut state = self.state.lock().await;
+        let mut conns = self.connections.lock().await;
         match result {
             Ok((client, _handle)) => {
-                info!("startup probe: database connected successfully");
-                if let Some(ref cb) = self.on_connected {
+                info!("startup probe: database '{}' connected successfully", name);
+                if let Some(cb) = self.on_connected.get(&name) {
                     cb();
                 }
-                *state = ConnectionState::Connected(client);
+                conns.insert(name, ConnectionState::Connected(client));
             }
             Err(e) => {
                 let chain = format_error_chain(e.as_ref());
                 let redacted = redact_url(&url);
-                error!("startup probe: database connection failed: {} (target: {})", chain, redacted);
-                *state = ConnectionState::Unavailable(url);
+                error!("startup probe: database '{}' connection failed: {} (target: {})", name, chain, redacted);
+                conns.insert(name, ConnectionState::Unavailable(url));
             }
         }
     }
 
-    async fn get_client(&self) -> Result<Arc<tokio_opengauss::Client>, McpError> {
-        let state = self.state.lock().await;
-        match &*state {
-            ConnectionState::Connected(client) => Ok(Arc::clone(client)),
-            ConnectionState::Pending(resolver) => {
+    /// Get a client for a named connection (None = default).
+    async fn get_client_for(&self, connection_name: Option<&str>) -> Result<Arc<tokio_opengauss::Client>, McpError> {
+        let name = connection_name.unwrap_or(&self.default_name).to_string();
+        let conns = self.connections.lock().await;
+
+        match conns.get(&name) {
+            Some(ConnectionState::Connected(client)) => Ok(Arc::clone(client)),
+            Some(ConnectionState::Pending(resolver)) => {
                 let resolver = Arc::clone(resolver);
-                drop(state);
+                drop(conns);
                 let url = resolver().map_err(|e| {
                     McpError::internal_error(
-                        format!("Failed to resolve database credentials: {}", e),
+                        format!("Failed to resolve database credentials for '{}': {}", name, e),
                         Some(json!({
+                            "connection_name": name,
                             "hint": "Check your gaussdb-mcp configuration and OS keychain access"
                         })),
                     )
                 })?;
-                info!("connection URL resolved, attempting database connection");
-                self.connect_with_url(url).await
+                info!("connection URL resolved for '{}', attempting database connection", name);
+                self.connect_with_url(name, url).await
             }
-            ConnectionState::Connecting(url) | ConnectionState::Unavailable(url) => {
+            Some(ConnectionState::Connecting(url) | ConnectionState::Unavailable(url)) => {
                 let url = url.clone();
-                drop(state);
-                info!("attempting database connection");
-                self.connect_with_url(url).await
+                drop(conns);
+                info!("attempting database connection for '{}'", name);
+                self.connect_with_url(name, url).await
+            }
+            None => {
+                let available: Vec<&String> = conns.keys().collect();
+                Err(McpError::invalid_request(
+                    "unknown_connection",
+                    Some(json!({
+                        "message": format!("Connection '{}' not found", name),
+                        "available_connections": available,
+                        "default_connection": self.default_name,
+                    })),
+                ))
             }
         }
     }
 
+    /// Backward-compatible: get client for default connection.
+    #[allow(dead_code)]
+    async fn get_client(&self) -> Result<Arc<tokio_opengauss::Client>, McpError> {
+        self.get_client_for(None).await
+    }
+
     async fn connect_with_url(
         &self,
+        name: String,
         url: String,
     ) -> Result<Arc<tokio_opengauss::Client>, McpError> {
         let result = do_connect(&url).await;
-        let mut state = self.state.lock().await;
+        let mut conns = self.connections.lock().await;
 
         match result {
             Ok((client, _handle)) => {
-                info!("database connected successfully");
-                if let Some(ref cb) = self.on_connected {
+                info!("database '{}' connected successfully", name);
+                if let Some(cb) = self.on_connected.get(&name) {
                     cb();
                 }
-                *state = ConnectionState::Connected(Arc::clone(&client));
+                conns.insert(name, ConnectionState::Connected(Arc::clone(&client)));
                 Ok(client)
             }
             Err(e) => {
                 let err = connection_error(&url, e.as_ref());
-                *state = ConnectionState::Unavailable(url);
+                conns.insert(name, ConnectionState::Unavailable(url));
                 Err(err)
             }
         }
@@ -517,9 +591,12 @@ impl GaussdbMcp {
 #[tool_router]
 impl GaussdbMcp {
     #[tool(description = "Get database version and server information")]
-    async fn get_database_info(&self) -> Result<CallToolResult, McpError> {
-        info!("tool called: get_database_info");
-        let client = self.get_client().await?;
+    async fn get_database_info(
+        &self,
+        Parameters(params): Parameters<ConnectionNameParams>,
+    ) -> Result<CallToolResult, McpError> {
+        info!("tool called: get_database_info connection={}", params.connection_name.as_deref().unwrap_or("(default)"));
+        let client = self.get_client_for(params.connection_name.as_deref()).await?;
         let row = client
             .query_one(queries::DATABASE_INFO, &[])
             .await
@@ -543,9 +620,12 @@ impl GaussdbMcp {
     }
 
     #[tool(description = "List all user tables and views in the database")]
-    async fn list_tables(&self) -> Result<CallToolResult, McpError> {
-        info!("tool called: list_tables");
-        let client = self.get_client().await?;
+    async fn list_tables(
+        &self,
+        Parameters(params): Parameters<ConnectionNameParams>,
+    ) -> Result<CallToolResult, McpError> {
+        info!("tool called: list_tables connection={}", params.connection_name.as_deref().unwrap_or("(default)"));
+        let client = self.get_client_for(params.connection_name.as_deref()).await?;
         let rows = client
             .query(queries::LIST_TABLES, &[])
             .await
@@ -576,8 +656,8 @@ impl GaussdbMcp {
     ) -> Result<CallToolResult, McpError> {
         let schema = params.schema_name.as_deref().unwrap_or("public");
         let table = &params.table_name;
-        info!("tool called: get_table_metadata schema={} table={}", schema, table);
-        let client = self.get_client().await?;
+        info!("tool called: get_table_metadata schema={} table={} connection={}", schema, table, params.connection_name.as_deref().unwrap_or("(default)"));
+        let client = self.get_client_for(params.connection_name.as_deref()).await?;
 
         let columns_rows = client
             .query(queries::TABLE_COLUMNS, &[&schema, &table.as_str()])
@@ -643,8 +723,8 @@ impl GaussdbMcp {
     ) -> Result<CallToolResult, McpError> {
         let trimmed = params.sql.trim();
         let upper = trimmed.to_uppercase();
-        debug!("tool called: execute_query sql_len={}", trimmed.len());
-        let client = self.get_client().await?;
+        debug!("tool called: execute_query sql_len={} connection={}", trimmed.len(), params.connection_name.as_deref().unwrap_or("(default)"));
+        let client = self.get_client_for(params.connection_name.as_deref()).await?;
         if !upper.starts_with("SELECT") && !upper.starts_with("EXPLAIN") {
             error!("execute_query rejected non-SELECT query: {:?}", &trimmed[..trimmed.len().min(80)]);
             return Err(McpError::invalid_request(
@@ -696,8 +776,8 @@ impl GaussdbMcp {
     ) -> Result<CallToolResult, McpError> {
         let analyze = params.analyze.unwrap_or(false);
         let format = params.format.as_deref().unwrap_or("TEXT").to_uppercase();
-        info!("tool called: get_execution_plan analyze={} format={}", analyze, format);
-        let client = self.get_client().await?;
+        info!("tool called: get_execution_plan analyze={} format={} connection={}", analyze, format, params.connection_name.as_deref().unwrap_or("(default)"));
+        let client = self.get_client_for(params.connection_name.as_deref()).await?;
 
         let explain_sql = if analyze {
             format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT {}) {}", format, params.sql)
@@ -732,9 +812,40 @@ impl GaussdbMcp {
             result.to_string(),
         )]))
     }
+
+    #[tool(description = "List all configured database connections")]
+    async fn list_connections(&self) -> Result<CallToolResult, McpError> {
+        info!("tool called: list_connections");
+        let conns = self.connections.lock().await;
+        let connections: Vec<serde_json::Value> = conns
+            .iter()
+            .map(|(name, state)| {
+                let status = match state {
+                    ConnectionState::Connected(_) => "connected",
+                    ConnectionState::Connecting(_) => "connecting",
+                    ConnectionState::Pending(_) => "pending",
+                    ConnectionState::Unavailable(_) => "unavailable",
+                };
+                json!({
+                    "name": name,
+                    "status": status,
+                    "is_default": name == &self.default_name,
+                })
+            })
+            .collect();
+
+        let result = json!({
+            "connections": connections,
+            "default_connection": self.default_name,
+        });
+
+        Ok(CallToolResult::success(vec![Content::text(
+            result.to_string(),
+        )]))
+    }
 }
 
-#[tool_handler(name = "gaussdb-mcp", version = "0.1.0", instructions = "MCP server for openGauss database introspection")]
+#[tool_handler(name = "gaussdb-mcp", version = "0.2.0", instructions = "MCP server for openGauss database introspection with multi-connection support")]
 impl ServerHandler for GaussdbMcp {}
 
 fn format_row_value(row: &Row, idx: usize) -> serde_json::Value {

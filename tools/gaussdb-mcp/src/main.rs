@@ -44,8 +44,17 @@ struct TlsCertInfo {
     serial: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct Config {
+#[derive(Clone, Copy, Debug)]
+enum PasswordSource {
+    EnvVar,
+    Plaintext,
+    Keyring,
+    None,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct NamedConnection {
+    name: String,
     url: Option<String>,
     host: Option<String>,
     port: Option<u16>,
@@ -55,28 +64,21 @@ struct Config {
     sslmode: Option<String>,
 }
 
-struct ResolvedConfig {
-    connection_url: String,
-    config_path: Option<PathBuf>,
-    plaintext_password: Option<String>,
-    keyring_username: String,
-    password_source: PasswordSource,
+#[derive(Debug, Deserialize)]
+struct MultiConfig {
+    url: Option<String>,
+    host: Option<String>,
+    port: Option<u16>,
+    user: Option<String>,
+    password: Option<String>,
+    dbname: Option<String>,
+    sslmode: Option<String>,
+
+    default_connection: Option<String>,
+    connections: Option<Vec<NamedConnection>>,
 }
 
-#[derive(Clone, Copy)]
-enum PasswordSource {
-    EnvVar,
-    Plaintext,
-    Keyring,
-    None,
-}
-
-enum LazyResolvedConfig {
-    Ready(ResolvedConfig),
-    Pending(Arc<dyn (Fn() -> Result<String, String>) + Send + Sync>),
-}
-
-impl Config {
+impl NamedConnection {
     fn keyring_username(&self) -> String {
         match (&self.user, &self.host, &self.dbname) {
             (Some(u), Some(h), Some(d)) => format!("{}@{}/{}", u, h, d),
@@ -96,27 +98,60 @@ impl Config {
         }
 
         let mut parts = Vec::new();
-        if let Some(ref host) = self.host {
-            parts.push(format!("host={}", host));
-        }
-        if let Some(port) = self.port {
-            parts.push(format!("port={}", port));
-        }
-        if let Some(ref user) = self.user {
-            parts.push(format!("user={}", user));
-        }
-        if let Some(ref password) = self.password {
-            parts.push(format!("password={}", password));
-        }
-        if let Some(ref dbname) = self.dbname {
-            parts.push(format!("dbname={}", dbname));
-        }
-        if let Some(ref sslmode) = self.sslmode {
-            parts.push(format!("sslmode={}", sslmode));
-        }
+        if let Some(ref host) = self.host { parts.push(format!("host={}", host)); }
+        if let Some(port) = self.port { parts.push(format!("port={}", port)); }
+        if let Some(ref user) = self.user { parts.push(format!("user={}", user)); }
+        if let Some(ref password) = self.password { parts.push(format!("password={}", password)); }
+        if let Some(ref dbname) = self.dbname { parts.push(format!("dbname={}", dbname)); }
+        if let Some(ref sslmode) = self.sslmode { parts.push(format!("sslmode={}", sslmode)); }
 
         Some(parts.join(" "))
     }
+}
+
+impl MultiConfig {
+    fn resolve(self) -> Result<(Vec<NamedConnection>, Option<String>), String> {
+        match self.connections {
+            Some(ref conns) if !conns.is_empty() => {
+                let default = self.default_connection.clone()
+                    .or_else(|| conns.first().map(|c| c.name.clone()));
+                Ok((self.connections.unwrap(), default))
+            }
+            _ => {
+                if self.host.is_none() && self.user.is_none() && self.url.is_none() {
+                    return Err("config must contain either [[connections]] or flat host/user fields".into());
+                }
+                let single = NamedConnection {
+                    name: "default".to_string(),
+                    url: self.url,
+                    host: self.host,
+                    port: self.port,
+                    user: self.user,
+                    password: self.password,
+                    dbname: self.dbname,
+                    sslmode: self.sslmode,
+                };
+                Ok((vec![single], Some("default".to_string())))
+            }
+        }
+    }
+}
+
+struct ResolvedConnection {
+    name: String,
+    connection_url: String,
+    config_path: Option<PathBuf>,
+    plaintext_password: Option<String>,
+    keyring_username: String,
+    password_source: PasswordSource,
+}
+
+enum LazyConnectionEntry {
+    Ready(ResolvedConnection),
+    Pending {
+        name: String,
+        resolver: Arc<dyn (Fn() -> Result<String, String>) + Send + Sync>,
+    },
 }
 
 fn read_keyring_password(username: &str) -> Result<String, String> {
@@ -138,7 +173,6 @@ fn store_keyring_password(username: &str, password: &str) -> Result<(), String> 
     entry
         .set_password(password)
         .map_err(|e| format!("keyring store failed: {}", e))?;
-    // Verify the password is actually readable back
     let verified = entry
         .get_password()
         .map_err(|e| format!("keyring verification failed (password was stored but cannot be read back): {}", e))?;
@@ -179,10 +213,138 @@ fn default_config_path() -> Option<PathBuf> {
     dirs::home_dir().map(|p| p.join(".gaussdb-mcp.toml"))
 }
 
+fn find_config_path() -> Result<PathBuf, String> {
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(pos) = args.iter().position(|a| a == "--config") {
+        args.get(pos + 1)
+            .map(PathBuf::from)
+            .ok_or_else(|| "--config requires a file path argument".to_string())
+    } else {
+        match default_config_path() {
+            Some(p) if p.exists() => Ok(p),
+            _ => Err(
+                "No connection configuration found. Use one of:\n\
+                 \n\
+                 \u{20} 1. Set GAUSSDB_URL or DATABASE_URL environment variable\n\
+                 \u{20}    export GAUSSDB_URL=\"host=localhost user=postgres password=secret dbname=mydb\"\n\
+                 \n\
+                 \u{20} 2. Create ~/.gaussdb-mcp.toml config file:\n\
+                 \u{20}    host = \"localhost\"\n\
+                 \u{20}    user = \"postgres\"\n\
+                 \u{20}    password = \"secret\"\n\
+                 \u{20}    dbname = \"mydb\"\n\
+                 \n\
+                 \u{20} 3. Pass --config <path> to specify a config file\n\
+                 \n\
+                 \u{20} Password will be migrated to OS keychain on first successful connection."
+                    .to_string(),
+            ),
+        }
+    }
+}
+
+fn resolve_single_connection(conn: &NamedConnection, config_path: Option<PathBuf>) -> Result<ResolvedConnection, String> {
+    let mut conn = conn.clone();
+    let keyring_user = conn.keyring_username();
+
+    let is_sentinel = conn.password.as_deref() == Some(KEYRING_SENTINEL);
+    let is_plaintext = conn.password.as_ref().is_some_and(|p| p != KEYRING_SENTINEL);
+    let has_no_password = conn.password.is_none();
+
+    let password_source = if is_plaintext {
+        PasswordSource::Plaintext
+    } else if is_sentinel {
+        PasswordSource::Keyring
+    } else {
+        PasswordSource::None
+    };
+
+    if is_sentinel || has_no_password {
+        let pw = read_keyring_password(&keyring_user)?;
+        conn.password = Some(pw);
+    }
+
+    let plaintext_password = if is_plaintext {
+        conn.password.clone()
+    } else {
+        None
+    };
+
+    let connection_url = conn.to_connection_url().ok_or_else(|| {
+        format!(
+            "connection '{}' must contain either `url` or at least `host`/`user` fields",
+            conn.name
+        )
+    })?;
+
+    Ok(ResolvedConnection {
+        name: conn.name.clone(),
+        connection_url,
+        config_path,
+        plaintext_password,
+        keyring_username: keyring_user,
+        password_source,
+    })
+}
+
+fn build_lazy_resolver(conn: &NamedConnection) -> Result<LazyConnectionEntry, String> {
+    let conn = conn.clone();
+    let keyring_user = conn.keyring_username();
+
+    let is_sentinel = conn.password.as_deref() == Some(KEYRING_SENTINEL);
+    let is_plaintext = conn.password.as_ref().is_some_and(|p| p != KEYRING_SENTINEL);
+
+    if is_plaintext || conn.url.is_some() {
+        let resolved = resolve_single_connection(&conn, None)?;
+        return Ok(LazyConnectionEntry::Ready(resolved));
+    }
+
+    let password_source = if is_sentinel {
+        PasswordSource::Keyring
+    } else {
+        PasswordSource::None
+    };
+
+    if conn.host.is_none() && conn.user.is_none() {
+        return Err(format!(
+            "connection '{}' must contain either `url` or at least `host`/`user` fields",
+            conn.name
+        ));
+    }
+
+    let host = conn.host.clone();
+    let port = conn.port;
+    let user = conn.user.clone();
+    let dbname = conn.dbname.clone();
+    let sslmode = conn.sslmode.clone();
+    let name = conn.name.clone();
+
+    let resolver = Arc::new(move || {
+        let password = match password_source {
+            PasswordSource::Keyring => Some(read_keyring_password(&keyring_user)?),
+            PasswordSource::None => None,
+            _ => unreachable!(),
+        };
+
+        let mut parts = Vec::new();
+        if let Some(ref h) = host { parts.push(format!("host={}", h)); }
+        if let Some(p) = port { parts.push(format!("port={}", p)); }
+        if let Some(ref u) = user { parts.push(format!("user={}", u)); }
+        if let Some(pw) = password { parts.push(format!("password={}", pw)); }
+        if let Some(ref d) = dbname { parts.push(format!("dbname={}", d)); }
+        if let Some(ref s) = sslmode { parts.push(format!("sslmode={}", s)); }
+
+        Ok(parts.join(" "))
+    });
+
+    Ok(LazyConnectionEntry::Pending { name, resolver })
+}
+
 fn handle_store_password() {
     let args: Vec<String> = std::env::args().collect();
     let mut password = None;
     let mut config_path = None;
+    let mut conn_name = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -193,6 +355,10 @@ fn handle_store_password() {
             }
             "--config" => {
                 config_path = args.get(i + 1).map(PathBuf::from);
+                i += 2;
+            }
+            "--name" => {
+                conn_name = args.get(i + 1).cloned();
                 i += 2;
             }
             _ => i += 1,
@@ -221,277 +387,103 @@ fn handle_store_password() {
         std::process::exit(1);
     });
 
-    let config: Config = toml::from_str(&content).unwrap_or_else(|e| {
+    let config: MultiConfig = toml::from_str(&content).unwrap_or_else(|e| {
         eprintln!("error: failed to parse {}: {}", config_path.display(), e);
         std::process::exit(1);
     });
 
-    let keyring_user = config.keyring_username();
+    let (connections, _) = config.resolve().unwrap_or_else(|e| {
+        eprintln!("error: {}", e);
+        std::process::exit(1);
+    });
+
+    let target = if let Some(ref name) = conn_name {
+        connections.iter().find(|c| c.name == *name).unwrap_or_else(|| {
+            eprintln!("error: connection '{}' not found in config", name);
+            eprintln!("  available: {:?}", connections.iter().map(|c| &c.name).collect::<Vec<_>>());
+            std::process::exit(1);
+        })
+    } else {
+        connections.first().unwrap_or_else(|| {
+            eprintln!("error: no connections defined in config");
+            std::process::exit(1);
+        })
+    };
+
+    let keyring_user = target.keyring_username();
 
     if let Err(e) = store_keyring_password(&keyring_user, &password) {
         eprintln!("error: {}", e);
         std::process::exit(1);
     }
 
-    println!("Password stored in OS keychain for '{}'.", keyring_user);
-
-    if config.password.as_ref().is_some_and(|p| p != KEYRING_SENTINEL) {
-        if let Err(e) = rewrite_password_to_sentinel(&config_path) {
-            eprintln!("warning: failed to update config file: {}", e);
-        } else {
-            println!(
-                "Config file {} updated: password = \"{}\"",
-                config_path.display(),
-                KEYRING_SENTINEL
-            );
-        }
-    }
+    println!("Password stored in OS keychain for '{}' (connection: '{}').", keyring_user, target.name);
 }
 
-fn resolve_connection_url_or_check() -> ResolvedConfig {
-    resolve_connection_url_inner(false).unwrap_or_else(|e| {
-        eprintln!("error: {}", e);
-        std::process::exit(1);
-    })
-}
-
-fn resolve_connection_url_inner(_allow_keyring_diag: bool) -> Result<ResolvedConfig, String> {
-    // 1. Environment variable (highest priority)
+fn resolve_all_connections() -> Result<(Vec<ResolvedConnection>, String), String> {
     if let Ok(url) = std::env::var("GAUSSDB_URL").or_else(|_| std::env::var("DATABASE_URL")) {
-        return Ok(ResolvedConfig {
+        let resolved = ResolvedConnection {
+            name: "default".to_string(),
             connection_url: url,
             config_path: None,
             plaintext_password: None,
             keyring_username: String::new(),
             password_source: PasswordSource::EnvVar,
-        });
-    }
-
-    // 2. --config <path> CLI argument
-    let args: Vec<String> = std::env::args().collect();
-    let config_path = if let Some(pos) = args.iter().position(|a| a == "--config") {
-        args.get(pos + 1)
-            .map(PathBuf::from)
-            .ok_or_else(|| "--config requires a file path argument".to_string())?
-    } else {
-        // 3. Default config file ~/.gaussdb-mcp.toml
-        match default_config_path() {
-            Some(p) if p.exists() => p,
-            _ => {
-                return Err(
-                    "No connection configuration found. Use one of:\n\
-                     \n\
-                     \u{20} 1. Set GAUSSDB_URL or DATABASE_URL environment variable\n\
-                     \u{20}    export GAUSSDB_URL=\"host=localhost user=postgres password=secret dbname=mydb\"\n\
-                     \n\
-                     \u{20} 2. Create ~/.gaussdb-mcp.toml config file:\n\
-                     \u{20}    host = \"localhost\"\n\
-                     \u{20}    user = \"postgres\"\n\
-                     \u{20}    password = \"secret\"\n\
-                     \u{20}    dbname = \"mydb\"\n\
-                     \n\
-                     \u{20} 3. Pass --config <path> to specify a config file\n\
-                     \n\
-                     \u{20} Password will be migrated to OS keychain on first successful connection."
-                        .to_string(),
-                );
-            }
-        }
-    };
-
-    let content = std::fs::read_to_string(&config_path)
-        .map_err(|e| format!("failed to read config file {}: {}", config_path.display(), e))?;
-
-    let mut config: Config = toml::from_str(&content)
-        .map_err(|e| format!("failed to parse config file {}: {}", config_path.display(), e))?;
-
-    let keyring_user = config.keyring_username();
-    let is_sentinel = config.password.as_deref() == Some(KEYRING_SENTINEL);
-    let is_plaintext = config
-        .password
-        .as_ref()
-        .is_some_and(|p| p != KEYRING_SENTINEL);
-    let has_no_password = config.password.is_none();
-
-    let password_source = if is_plaintext {
-        PasswordSource::Plaintext
-    } else if is_sentinel {
-        PasswordSource::Keyring
-    } else if has_no_password {
-        PasswordSource::None
-    } else {
-        PasswordSource::None
-    };
-
-    if is_sentinel || has_no_password {
-        let pw = read_keyring_password(&keyring_user)?;
-        config.password = Some(pw);
-    }
-
-    let plaintext_password = if is_plaintext {
-        config.password.clone()
-    } else {
-        None
-    };
-
-    let connection_url = config.to_connection_url().ok_or_else(|| {
-        format!(
-            "config file {} must contain either `url` or at least `host`/`user` fields",
-            config_path.display()
-        )
-    })?;
-
-    Ok(ResolvedConfig {
-        connection_url,
-        config_path: Some(config_path),
-        plaintext_password,
-        keyring_username: keyring_user,
-        password_source,
-    })
-}
-
-fn resolve_connection_url_lazy() -> LazyResolvedConfig {
-    resolve_connection_url_lazy_inner().unwrap_or_else(|e| {
-        eprintln!("error: {}", e);
-        std::process::exit(1);
-    })
-}
-
-fn resolve_connection_url_lazy_inner() -> Result<LazyResolvedConfig, String> {
-    // 1. Environment variable (highest priority) - no keychain needed
-    if let Ok(url) = std::env::var("GAUSSDB_URL").or_else(|_| std::env::var("DATABASE_URL")) {
-        return Ok(LazyResolvedConfig::Ready(ResolvedConfig {
-            connection_url: url,
-            config_path: None,
-            plaintext_password: None,
-            keyring_username: String::new(),
-            password_source: PasswordSource::EnvVar,
-        }));
-    }
-
-    // 2. --config <path> CLI argument
-    let args: Vec<String> = std::env::args().collect();
-    let config_path = if let Some(pos) = args.iter().position(|a| a == "--config") {
-        args.get(pos + 1)
-            .map(PathBuf::from)
-            .ok_or_else(|| "--config requires a file path argument".to_string())?
-    } else {
-        // 3. Default config file ~/.gaussdb-mcp.toml
-        match default_config_path() {
-            Some(p) if p.exists() => p,
-            _ => {
-                return Err(
-                    "No connection configuration found. Use one of:\n\
-                     \n\
-                     \u{20} 1. Set GAUSSDB_URL or DATABASE_URL environment variable\n\
-                     \u{20}    export GAUSSDB_URL=\"host=localhost user=postgres password=secret dbname=mydb\"\n\
-                     \n\
-                     \u{20} 2. Create ~/.gaussdb-mcp.toml config file:\n\
-                     \u{20}    host = \"localhost\"\n\
-                     \u{20}    user = \"postgres\"\n\
-                     \u{20}    password = \"secret\"\n\
-                     \u{20}    dbname = \"mydb\"\n\
-                     \n\
-                     \u{20} 3. Pass --config <path> to specify a config file\n\
-                     \n\
-                     \u{20} Password will be migrated to OS keychain on first successful connection."
-                        .to_string(),
-                );
-            }
-        }
-    };
-
-    let content = std::fs::read_to_string(&config_path)
-        .map_err(|e| format!("failed to read config file {}: {}", config_path.display(), e))?;
-
-    let config: Config = toml::from_str(&content)
-        .map_err(|e| format!("failed to parse config file {}: {}", config_path.display(), e))?;
-
-    let keyring_user = config.keyring_username();
-
-    if let Some(ref url) = config.url {
-        return Ok(LazyResolvedConfig::Ready(ResolvedConfig {
-            connection_url: url.clone(),
-            config_path: Some(config_path),
-            plaintext_password: None,
-            keyring_username: keyring_user,
-            password_source: PasswordSource::Plaintext,
-        }));
-    }
-
-    let is_sentinel = config.password.as_deref() == Some(KEYRING_SENTINEL);
-    let is_plaintext = config.password
-        .as_ref()
-        .is_some_and(|p| p != KEYRING_SENTINEL);
-
-    if is_plaintext {
-        let plaintext_password = config.password.clone();
-        let connection_url = config.to_connection_url().ok_or_else(|| {
-            format!(
-                "config file {} must contain either `url` or at least `host`/`user` fields",
-                config_path.display()
-            )
-        })?;
-        Ok(LazyResolvedConfig::Ready(ResolvedConfig {
-            connection_url,
-            config_path: Some(config_path),
-            plaintext_password,
-            keyring_username: keyring_user,
-            password_source: PasswordSource::Plaintext,
-        }))
-    } else {
-        let password_source = if is_sentinel {
-            PasswordSource::Keyring
-        } else {
-            PasswordSource::None
         };
-
-        let host = config.host.clone();
-        let port = config.port;
-        let user = config.user.clone();
-        let dbname = config.dbname.clone();
-        let sslmode = config.sslmode.clone();
-
-        if host.is_none() && user.is_none() {
-            return Err(format!(
-                "config file {} must contain either `url` or at least `host`/`user` fields",
-                config_path.display()
-            ));
-        }
-
-        let resolver = Arc::new(move || {
-            let password = match password_source {
-                PasswordSource::Keyring => Some(read_keyring_password(&keyring_user)?),
-                PasswordSource::None => None,
-                _ => unreachable!(),
-            };
-
-            let mut parts = Vec::new();
-            if let Some(ref h) = host {
-                parts.push(format!("host={}", h));
-            }
-            if let Some(p) = port {
-                parts.push(format!("port={}", p));
-            }
-            if let Some(ref u) = user {
-                parts.push(format!("user={}", u));
-            }
-            if let Some(pw) = password {
-                parts.push(format!("password={}", pw));
-            }
-            if let Some(ref d) = dbname {
-                parts.push(format!("dbname={}", d));
-            }
-            if let Some(ref s) = sslmode {
-                parts.push(format!("sslmode={}", s));
-            }
-
-            Ok(parts.join(" "))
-        });
-
-        info!("keychain read deferred until first tool invocation");
-        Ok(LazyResolvedConfig::Pending(resolver))
+        return Ok((vec![resolved], "default".to_string()));
     }
+
+    let config_path = find_config_path()?;
+    let content = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("failed to read config file {}: {}", config_path.display(), e))?;
+
+    let config: MultiConfig = toml::from_str(&content)
+        .map_err(|e| format!("failed to parse config file {}: {}", config_path.display(), e))?;
+
+    let (connections, default_name) = config.resolve()?;
+    let default_name = default_name.unwrap_or_else(|| {
+        connections.first().map(|c| c.name.clone()).unwrap_or_default()
+    });
+
+    let mut resolved = Vec::with_capacity(connections.len());
+    for conn in &connections {
+        resolved.push(resolve_single_connection(conn, Some(config_path.clone()))?);
+    }
+
+    Ok((resolved, default_name))
+}
+
+fn resolve_all_connections_lazy() -> Result<(Vec<LazyConnectionEntry>, String), String> {
+    if let Ok(url) = std::env::var("GAUSSDB_URL").or_else(|_| std::env::var("DATABASE_URL")) {
+        let resolved = ResolvedConnection {
+            name: "default".to_string(),
+            connection_url: url,
+            config_path: None,
+            plaintext_password: None,
+            keyring_username: String::new(),
+            password_source: PasswordSource::EnvVar,
+        };
+        return Ok((vec![LazyConnectionEntry::Ready(resolved)], "default".to_string()));
+    }
+
+    let config_path = find_config_path()?;
+    let content = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("failed to read config file {}: {}", config_path.display(), e))?;
+
+    let config: MultiConfig = toml::from_str(&content)
+        .map_err(|e| format!("failed to parse config file {}: {}", config_path.display(), e))?;
+
+    let (connections, default_name) = config.resolve()?;
+    let default_name = default_name.unwrap_or_else(|| {
+        connections.first().map(|c| c.name.clone()).unwrap_or_default()
+    });
+
+    let mut entries = Vec::with_capacity(connections.len());
+    for conn in &connections {
+        entries.push(build_lazy_resolver(conn)?);
+    }
+
+    Ok((entries, default_name))
 }
 
 fn init_logging() {
@@ -517,13 +509,15 @@ fn init_logging() {
     info!("log file: {}/gaussdb-mcp.log", log_dir.display());
 }
 
-async fn handle_check_connection(resolved: &ResolvedConfig, verbose: bool) {
+async fn handle_check_connection(resolved: &ResolvedConnection, verbose: bool) {
     use server::redact_url;
 
     let url = &resolved.connection_url;
     let redacted = redact_url(url);
 
-    // ── Phase 1: Keyring check ──
+    eprintln!("Connection: {}", resolved.name);
+    eprintln!();
+
     match resolved.password_source {
         PasswordSource::Keyring => {
             eprintln!("[Keyring] Password read from OS keychain (user: {})", resolved.keyring_username);
@@ -568,7 +562,6 @@ async fn handle_check_connection(resolved: &ResolvedConfig, verbose: bool) {
         }
     }
 
-    // ── Phase 2: Connection attempts ──
     let url_without_sslmode = url
         .split_whitespace()
         .filter(|part| !part.starts_with("sslmode="))
@@ -655,7 +648,6 @@ async fn handle_check_connection(resolved: &ResolvedConfig, verbose: bool) {
         }
     }
 
-    // ── Summary ──
     eprintln!();
     eprintln!("═══════════════════════════════════════════════════════════");
     eprintln!("  Connection Diagnostic Summary");
@@ -784,7 +776,6 @@ fn extract_tls_cert_info(host: &str, port: u16, verify: bool) -> Result<TlsCertI
     )
     .map_err(|e| format!("TCP connect to {} failed: {}", addr, e))?;
 
-    // Send PostgreSQL SSLRequest message: length=8, protocol=80877103
     let ssl_request: [u8; 8] = [0, 0, 0, 8, 4, 210, 22, 47];
     stream
         .write_all(&ssl_request)
@@ -958,9 +949,10 @@ fn print_help() {
     eprintln!();
     eprintln!("OPTIONS:");
     eprintln!("    -h, --help                Print this help message");
-    eprintln!("    --check-connection        Test database connectivity and exit");
+    eprintln!("    --check-connection [NAME] Test database connectivity and exit");
     eprintln!("    -v, --verbose             Show detailed connection info (with --check-connection)");
     eprintln!("    --store-password <PASS>   Store password in OS keychain");
+    eprintln!("    --name <NAME>             Target connection name (for --store-password)");
     eprintln!("    --config <PATH>           Path to config file (default: ~/.gaussdb-mcp.toml)");
     eprintln!();
     eprintln!("CONFIGURATION (priority order):");
@@ -968,15 +960,35 @@ fn print_help() {
     eprintln!("    2. --config <path> CLI argument");
     eprintln!("    3. ~/.gaussdb-mcp.toml default config file");
     eprintln!();
+    eprintln!("CONFIG FILE (single connection - backward compatible):");
+    eprintln!(r#"    host = "127.0.0.1""#);
+    eprintln!(r#"    user = "gaussdb""#);
+    eprintln!(r#"    password = "secret""#);
+    eprintln!(r#"    dbname = "postgres""#);
+    eprintln!();
+    eprintln!("CONFIG FILE (multiple connections):");
+    eprintln!(r#"    default_connection = "dev""#);
+    eprintln!();
+    eprintln!("    [[connections]]");
+    eprintln!(r#"    name = "dev""#);
+    eprintln!(r#"    host = "127.0.0.1""#);
+    eprintln!(r#"    user = "gaussdb""#);
+    eprintln!(r#"    password = "secret""#);
+    eprintln!(r#"    dbname = "devdb""#);
+    eprintln!();
+    eprintln!("    [[connections]]");
+    eprintln!(r#"    name = "prod""#);
+    eprintln!(r#"    host = "192.168.1.10""#);
+    eprintln!(r#"    user = "admin""#);
+    eprintln!(r#"    password = "keyring""#);
+    eprintln!(r#"    dbname = "production""#);
+    eprintln!();
     eprintln!("EXAMPLES:");
-    eprintln!("    # Verify connectivity");
-    eprintln!(r#"    GAUSSDB_URL="host=127.0.0.1 user=gaussdb password=Enmo@123 dbname=postgres" gaussdb-mcp --check-connection"#);
+    eprintln!("    # Verify connectivity (first/default connection)");
+    eprintln!(r#"    gaussdb-mcp --check-connection"#);
     eprintln!();
-    eprintln!("    # Verify with detailed info (version, TLS cert, timing)");
-    eprintln!(r#"    GAUSSDB_URL="host=127.0.0.1 user=gaussdb password=Enmo@123 dbname=postgres" gaussdb-mcp --check-connection --verbose"#);
-    eprintln!();
-    eprintln!("    # Store password in OS keychain");
-    eprintln!("    gaussdb-mcp --store-password 'MyP@ss123' --config ~/.gaussdb-mcp.toml");
+    eprintln!("    # Store password for a named connection");
+    eprintln!(r#"    gaussdb-mcp --store-password 'MyP@ss123' --name prod --config ~/.gaussdb-mcp.toml"#);
     eprintln!();
     eprintln!("    # Run as MCP server (for Claude/Cursor/etc.)");
     eprintln!(r#"    GAUSSDB_URL="host=127.0.0.1 user=gaussdb password=Enmo@123 dbname=postgres" gaussdb-mcp"#);
@@ -1000,56 +1012,103 @@ async fn main() {
 
     if args.iter().any(|a| a == "--check-connection") {
         let verbose = args.iter().any(|a| a == "--verbose" || a == "-v");
-        let resolved = resolve_connection_url_or_check();
-        handle_check_connection(&resolved, verbose).await;
+
+        let (all_resolved, default_name) = resolve_all_connections().unwrap_or_else(|e| {
+            eprintln!("error: {}", e);
+            std::process::exit(1);
+        });
+
+        let target_name = if let Some(pos) = args.iter().position(|a| a == "--check-connection") {
+            args.get(pos + 1)
+                .filter(|a| !a.starts_with('-'))
+                .cloned()
+        } else {
+            None
+        };
+
+        let target = if let Some(ref name) = target_name {
+            all_resolved.iter().find(|c| c.name == *name).unwrap_or_else(|| {
+                eprintln!("error: connection '{}' not found", name);
+                eprintln!("  available: {:?}", all_resolved.iter().map(|c| &c.name).collect::<Vec<_>>());
+                std::process::exit(1);
+            })
+        } else {
+            all_resolved.iter().find(|c| c.name == default_name).unwrap_or(&all_resolved[0])
+        };
+
+        handle_check_connection(target, verbose).await;
         return;
     }
 
-    let server = match resolve_connection_url_lazy() {
-        LazyResolvedConfig::Ready(resolved) => {
-            let server = server::GaussdbMcp::new_disconnected(resolved.connection_url);
+    let (lazy_entries, default_name) = resolve_all_connections_lazy().unwrap_or_else(|e| {
+        eprintln!("error: {}", e);
+        std::process::exit(1);
+    });
 
-            let on_connected = {
-                let config_path = resolved.config_path;
-                let plaintext_password = Arc::new(resolved.plaintext_password);
-                let keyring_username = Arc::new(resolved.keyring_username);
-                let migrated = Arc::new(std::sync::atomic::AtomicBool::new(false));
-                Arc::new(move || {
-                    if migrated.load(std::sync::atomic::Ordering::Relaxed) {
-                        return;
-                    }
-                    if let (Some(path), Some(plaintext)) =
-                        (&config_path, plaintext_password.as_ref())
-                    {
+    let mut eager_entries = Vec::new();
+    let mut lazy_resolvers = Vec::new();
+    let mut callbacks_to_register: Vec<(String, Arc<dyn Fn() + Send + Sync>)> = Vec::new();
+
+    for entry in lazy_entries {
+        match entry {
+            LazyConnectionEntry::Ready(resolved) => {
+                let conn_name = resolved.name.clone();
+                let config_path = resolved.config_path.clone();
+                let plaintext_password = resolved.plaintext_password.clone();
+                let keyring_username = resolved.keyring_username.clone();
+
+                if let (Some(path), Some(plaintext)) = (&config_path, &plaintext_password) {
+                    let path = path.clone();
+                    let plaintext = plaintext.clone();
+                    let keyring_user = keyring_username.clone();
+                    let migrated = Arc::new(std::sync::atomic::AtomicBool::new(false));
+                    let cb = Arc::new(move || {
+                        if migrated.load(std::sync::atomic::Ordering::Relaxed) {
+                            return;
+                        }
                         migrated.store(true, std::sync::atomic::Ordering::Relaxed);
-                        info!("migrating plaintext password to OS keychain");
-                        if let Err(e) = store_keyring_password(&keyring_username, plaintext) {
-                            warn!(
-                                "failed to store password in keychain: {} (config file NOT modified)",
-                                e
-                            );
-                        } else if let Err(e) = rewrite_password_to_sentinel(path) {
+                        info!("migrating plaintext password to OS keychain for '{}'", keyring_user);
+                        if let Err(e) = store_keyring_password(&keyring_user, &plaintext) {
+                            warn!("failed to store password in keychain: {} (config file NOT modified)", e);
+                        } else if let Err(e) = rewrite_password_to_sentinel(&path) {
                             warn!("failed to update config file: {}", e);
                         } else {
-                            info!("password migrated to OS keychain, config updated");
+                            info!("password migrated to OS keychain for '{}', config updated", keyring_user);
                         }
-                    }
-                })
-            };
-            let server = Arc::new(server.on_connected(on_connected));
+                    });
+                    callbacks_to_register.push((conn_name.clone(), cb));
+                }
 
-            let probe = Arc::clone(&server);
-            tokio::spawn(async move {
-                probe.try_connect().await;
-            });
+                eager_entries.push((resolved.name, resolved.connection_url));
+            }
+            LazyConnectionEntry::Pending { name, resolver } => {
+                lazy_resolvers.push((name, resolver));
+            }
+        }
+    }
 
-            server
-        }
-        LazyResolvedConfig::Pending(resolver) => {
-            info!("keychain read deferred, using lazy connection");
-            Arc::new(server::GaussdbMcp::new_lazy(resolver))
-        }
+    let mut server = if !eager_entries.is_empty() && lazy_resolvers.is_empty() {
+        server::GaussdbMcp::new_multi_disconnected(eager_entries, default_name)
+    } else if !lazy_resolvers.is_empty() {
+        let all_lazy = eager_entries.into_iter()
+            .map(|(name, url)| (name, Arc::new(move || Ok(url.clone())) as Arc<dyn (Fn() -> Result<String, String>) + Send + Sync>))
+            .chain(lazy_resolvers)
+            .collect();
+        server::GaussdbMcp::new_multi_lazy(all_lazy, default_name)
+    } else {
+        server::GaussdbMcp::new_multi_disconnected(Vec::new(), default_name)
     };
+
+    for (name, cb) in callbacks_to_register {
+        server.set_on_connected(name, cb);
+    }
+
+    let server = Arc::new(server);
+
+    let probe = Arc::clone(&server);
+    tokio::spawn(async move {
+        probe.try_connect().await;
+    });
 
     info!("starting MCP server on stdio");
 
