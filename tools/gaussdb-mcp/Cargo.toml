@@ -26,3 +26,4 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tracing-appender = "0.2"
+x509-parser = "0.17"
