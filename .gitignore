@@ -4,3 +4,4 @@ target
 *.iml
 .vscode
 lib/openGauss-server
+.worktrees
