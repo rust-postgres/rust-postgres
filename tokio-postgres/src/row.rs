@@ -1,10 +1,11 @@
 //! Rows.
 
+use crate::Error;
 use crate::row::sealed::{AsName, Sealed};
 use crate::simple_query::SimpleColumn;
 use crate::statement::Column;
+use crate::statement::Statement;
 use crate::types::{FromSql, Type, WrongType};
-use crate::{Error, Statement};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
 use std::fmt;
