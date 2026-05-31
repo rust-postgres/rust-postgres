@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+### Added
+
+* Added a default-on `implicit-prepared-statements` feature. Disabling it removes APIs that require protocol-level named prepared statements while leaving typed unnamed query APIs available.
+
 ## v0.19.13 - 2026-03-30
 
 ### Added
