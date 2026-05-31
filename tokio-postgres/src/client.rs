@@ -64,23 +64,9 @@ impl Responses {
     }
 }
 
-/// A cache of type info and prepared statements for fetching type info
-/// (corresponding to the queries in the [prepare](prepare) module).
+/// A cache of type info looked up while fetching row metadata.
 #[derive(Default)]
 struct CachedTypeInfo {
-    /// A statement for basic information for a type from its
-    /// OID. Corresponds to [TYPEINFO_QUERY](prepare::TYPEINFO_QUERY) (or its
-    /// fallback).
-    typeinfo: Option<Statement>,
-    /// A statement for getting information for a composite type from its OID.
-    /// Corresponds to [TYPEINFO_QUERY](prepare::TYPEINFO_COMPOSITE_QUERY).
-    typeinfo_composite: Option<Statement>,
-    /// A statement for getting information for a composite type from its OID.
-    /// Corresponds to [TYPEINFO_QUERY](prepare::TYPEINFO_COMPOSITE_QUERY) (or
-    /// its fallback).
-    typeinfo_enum: Option<Statement>,
-
-    /// Cache of types already looked up.
     types: HashMap<Oid, Type>,
 }
 
@@ -104,30 +90,6 @@ impl InnerClient {
             receiver,
             cur: BackendMessages::empty(),
         })
-    }
-
-    pub fn typeinfo(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo.clone()
-    }
-
-    pub fn set_typeinfo(&self, statement: &Statement) {
-        self.cached_typeinfo.lock().typeinfo = Some(statement.clone());
-    }
-
-    pub fn typeinfo_composite(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo_composite.clone()
-    }
-
-    pub fn set_typeinfo_composite(&self, statement: &Statement) {
-        self.cached_typeinfo.lock().typeinfo_composite = Some(statement.clone());
-    }
-
-    pub fn typeinfo_enum(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo_enum.clone()
-    }
-
-    pub fn set_typeinfo_enum(&self, statement: &Statement) {
-        self.cached_typeinfo.lock().typeinfo_enum = Some(statement.clone());
     }
 
     pub fn type_(&self, oid: Oid) -> Option<Type> {
