@@ -1,16 +1,18 @@
 #[cfg(feature = "runtime")]
 use crate::Socket;
+#[cfg(feature = "implicit-prepared-statements")]
 use crate::copy_out::CopyOutStream;
 use crate::query::RowStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::types::{BorrowToSql, ToSql, Type};
-use crate::{
-    CancelToken, Client, CopyInSink, Error, Portal, Row, SimpleQueryMessage, Statement,
-    ToStatement, bind, query, slice_iter,
-};
+use crate::{CancelToken, Client, Error, Row, SimpleQueryMessage};
+#[cfg(feature = "implicit-prepared-statements")]
+use crate::{CopyInSink, Portal, Statement, ToStatement, bind, query, slice_iter};
+#[cfg(feature = "implicit-prepared-statements")]
 use bytes::Buf;
+#[cfg(feature = "implicit-prepared-statements")]
 use futures_util::TryStreamExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -75,11 +77,13 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::prepare`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.client.prepare(query).await
     }
 
     /// Like `Client::prepare_typed`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn prepare_typed(
         &self,
         query: &str,
@@ -89,6 +93,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query<T>(
         &self,
         statement: &T,
@@ -101,6 +106,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_one`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_one<T>(
         &self,
         statement: &T,
@@ -113,6 +119,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_opt`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_opt<T>(
         &self,
         statement: &T,
@@ -125,6 +132,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_raw`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
@@ -172,6 +180,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn execute<T>(
         &self,
         statement: &T,
@@ -193,6 +202,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute_iter`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -211,6 +221,7 @@ impl<'a> Transaction<'a> {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn bind<T>(
         &self,
         statement: &T,
@@ -225,6 +236,7 @@ impl<'a> Transaction<'a> {
     /// A maximally flexible version of [`bind`].
     ///
     /// [`bind`]: #method.bind
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn bind_raw<P, T, I>(&self, statement: &T, params: I) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement,
@@ -243,6 +255,7 @@ impl<'a> Transaction<'a> {
     ///
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all rows will be returned.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_portal(&self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
         self.query_portal_raw(portal, max_rows)
             .await?
@@ -253,6 +266,7 @@ impl<'a> Transaction<'a> {
     /// The maximally flexible version of [`query_portal`].
     ///
     /// [`query_portal`]: #method.query_portal
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_portal_raw(
         &self,
         portal: &Portal,
@@ -262,6 +276,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_in`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
@@ -271,6 +286,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_out`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,

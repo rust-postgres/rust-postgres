@@ -1,8 +1,7 @@
 use crate::types::{BorrowToSql, ToSql, Type};
-use crate::{
-    Client, CopyInWriter, CopyOutReader, Error, Row, RowIter, SimpleQueryMessage, Statement,
-    ToStatement, Transaction,
-};
+use crate::{Client, Error, Row, RowIter, SimpleQueryMessage, Transaction};
+#[cfg(feature = "implicit-prepared-statements")]
+use crate::{CopyInWriter, CopyOutReader, Statement, ToStatement};
 
 mod private {
     pub trait Sealed {}
@@ -13,6 +12,7 @@ mod private {
 /// This trait is "sealed", and cannot be implemented outside of this crate.
 pub trait GenericClient: private::Sealed {
     /// Like `Client::execute`.
+    #[cfg(feature = "implicit-prepared-statements")]
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement;
@@ -25,16 +25,19 @@ pub trait GenericClient: private::Sealed {
     ) -> Result<u64, Error>;
 
     /// Like `Client::query`.
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement;
 
     /// Like `Client::query_one`.
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement;
 
     /// Like `Client::query_opt`.
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query_opt<T>(
         &mut self,
         query: &T,
@@ -44,6 +47,7 @@ pub trait GenericClient: private::Sealed {
         T: ?Sized + ToStatement;
 
     /// Like `Client::query_raw`.
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -79,17 +83,21 @@ pub trait GenericClient: private::Sealed {
         I: IntoIterator<Item = (P, Type)> + Sync + Send;
 
     /// Like `Client::prepare`.
+    #[cfg(feature = "implicit-prepared-statements")]
     fn prepare(&mut self, query: &str) -> Result<Statement, Error>;
 
     /// Like `Client::prepare_typed`.
+    #[cfg(feature = "implicit-prepared-statements")]
     fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error>;
 
     /// Like `Client::copy_in`.
+    #[cfg(feature = "implicit-prepared-statements")]
     fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement;
 
     /// Like `Client::copy_out`.
+    #[cfg(feature = "implicit-prepared-statements")]
     fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement;
@@ -107,6 +115,7 @@ pub trait GenericClient: private::Sealed {
 impl private::Sealed for Client {}
 
 impl GenericClient for Client {
+    #[cfg(feature = "implicit-prepared-statements")]
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -114,6 +123,7 @@ impl GenericClient for Client {
         self.execute(query, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -121,6 +131,7 @@ impl GenericClient for Client {
         self.query(query, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
@@ -128,6 +139,7 @@ impl GenericClient for Client {
         self.query_one(query, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query_opt<T>(
         &mut self,
         query: &T,
@@ -139,6 +151,7 @@ impl GenericClient for Client {
         self.query_opt(query, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -181,14 +194,17 @@ impl GenericClient for Client {
         self.query_typed_raw(statement, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.prepare(query)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.prepare_typed(query, types)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -196,6 +212,7 @@ impl GenericClient for Client {
         self.copy_in(query)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -227,6 +244,7 @@ impl GenericClient for Client {
 impl private::Sealed for Transaction<'_> {}
 
 impl GenericClient for Transaction<'_> {
+    #[cfg(feature = "implicit-prepared-statements")]
     fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -234,6 +252,7 @@ impl GenericClient for Transaction<'_> {
         self.execute(query, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -241,6 +260,7 @@ impl GenericClient for Transaction<'_> {
         self.query(query, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
@@ -248,6 +268,7 @@ impl GenericClient for Transaction<'_> {
         self.query_one(query, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query_opt<T>(
         &mut self,
         query: &T,
@@ -259,6 +280,7 @@ impl GenericClient for Transaction<'_> {
         self.query_opt(query, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -285,14 +307,17 @@ impl GenericClient for Transaction<'_> {
         self.query_typed_raw(statement, params)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.prepare(query)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.prepare_typed(query, types)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -300,6 +325,7 @@ impl GenericClient for Transaction<'_> {
         self.copy_in(query)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,

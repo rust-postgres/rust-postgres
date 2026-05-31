@@ -1,21 +1,32 @@
+#[cfg(feature = "implicit-prepared-statements")]
+use crate::Column;
+use crate::Error;
 use crate::client::InnerClient;
+#[cfg(feature = "implicit-prepared-statements")]
 use crate::codec::FrontendMessage;
+#[cfg(feature = "implicit-prepared-statements")]
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
 use crate::query;
+#[cfg(feature = "implicit-prepared-statements")]
 use crate::statement::Statement;
 use crate::types::ToSql;
 use crate::types::{Field, Kind, Oid, Type};
-use crate::{Column, Error};
+#[cfg(feature = "implicit-prepared-statements")]
 use bytes::Bytes;
+#[cfg(feature = "implicit-prepared-statements")]
 use fallible_iterator::FallibleIterator;
 use futures_util::TryStreamExt;
+#[cfg(feature = "implicit-prepared-statements")]
 use log::debug;
+#[cfg(feature = "implicit-prepared-statements")]
 use postgres_protocol::message::backend::Message;
+#[cfg(feature = "implicit-prepared-statements")]
 use postgres_protocol::message::frontend;
 use std::future::Future;
 use std::pin::{Pin, pin};
 use std::sync::Arc;
+#[cfg(feature = "implicit-prepared-statements")]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const TYPEINFO_QUERY: &str = "\
@@ -58,8 +69,10 @@ AND attnum > 0
 ORDER BY attnum
 ";
 
+#[cfg(feature = "implicit-prepared-statements")]
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(feature = "implicit-prepared-statements")]
 pub async fn prepare(
     client: &Arc<InnerClient>,
     query: &str,
@@ -111,6 +124,7 @@ pub async fn prepare(
     Ok(Statement::new(client, name, parameters, columns))
 }
 
+#[cfg(feature = "implicit-prepared-statements")]
 fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
     if types.is_empty() {
         debug!("preparing query {name}: {query}");

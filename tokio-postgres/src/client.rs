@@ -3,6 +3,7 @@ use crate::Socket;
 use crate::codec::{BackendMessages, FrontendMessage};
 use crate::config::{SslMode, SslNegotiation};
 use crate::connection::{Request, RequestMessages};
+#[cfg(feature = "implicit-prepared-statements")]
 use crate::copy_out::CopyOutStream;
 #[cfg(feature = "runtime")]
 use crate::keepalive::KeepaliveConfig;
@@ -13,17 +14,23 @@ use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::types::{Oid, ToSql, Type};
 use crate::{
-    CancelToken, CopyInSink, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
-    TransactionBuilder, copy_in, copy_out, prepare, query, simple_query, slice_iter,
+    CancelToken, Error, Row, SimpleQueryMessage, Transaction, TransactionBuilder, query,
+    simple_query,
 };
-use bytes::{Buf, BytesMut};
+#[cfg(feature = "implicit-prepared-statements")]
+use crate::{CopyInSink, Statement, ToStatement, copy_in, copy_out, prepare, slice_iter};
+#[cfg(feature = "implicit-prepared-statements")]
+use bytes::Buf;
+use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use futures_channel::mpsc;
 use futures_util::{StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
-use postgres_types::{BorrowToSql, FromSqlOwned};
+use postgres_types::BorrowToSql;
+#[cfg(feature = "implicit-prepared-statements")]
+use postgres_types::FromSqlOwned;
 use std::collections::HashMap;
 use std::fmt;
 use std::future;
@@ -186,6 +193,7 @@ impl Client {
     ///
     /// Prepared statements can be executed repeatedly, and may contain query parameters (indicated by `$1`, `$2`, etc),
     /// which are set when executed. Prepared statements can only be used with the connection that created them.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.prepare_typed(query, &[]).await
     }
@@ -194,6 +202,7 @@ impl Client {
     ///
     /// The list of types may be smaller than the number of parameters - the types of the remaining parameters will be
     /// inferred. For example, `client.prepare_typed(query, &[])` is equivalent to `client.prepare(query)`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn prepare_typed(
         &self,
         query: &str,
@@ -210,6 +219,7 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query<T>(
         &self,
         statement: &T,
@@ -225,6 +235,7 @@ impl Client {
     }
 
     /// Returns a vector of scalars.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_scalar<R: FromSqlOwned, T>(
         &self,
         statement: &T,
@@ -258,6 +269,7 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_one<T>(
         &self,
         statement: &T,
@@ -272,6 +284,7 @@ impl Client {
     }
 
     /// Like [`Client::query_one`] but returns one scalar.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_one_scalar<R: FromSqlOwned, T>(
         &self,
         statement: &T,
@@ -299,6 +312,7 @@ impl Client {
     /// The `statement` argument can either be a `Statement`, or a raw query string. If the same statement will be
     /// repeatedly executed (perhaps with different query parameters), consider preparing the statement up front
     /// with the `prepare` method.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_opt<T>(
         &self,
         statement: &T,
@@ -328,6 +342,7 @@ impl Client {
     }
 
     /// Like [`Client::query_opt`] but returns an optional scalar.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_opt_scalar<R: FromSqlOwned, T>(
         &self,
         statement: &T,
@@ -381,6 +396,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement,
@@ -530,6 +546,7 @@ impl Client {
     /// with the `prepare` method.
     ///
     /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn execute<T>(
         &self,
         statement: &T,
@@ -574,6 +591,7 @@ impl Client {
     /// with the `prepare` method.
     ///
     /// [`execute`]: #method.execute
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn execute_raw<T, P, I>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -589,6 +607,7 @@ impl Client {
     ///
     /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any. The copy *must*
     /// be explicitly completed via the `Sink::close` or `finish` methods. If it is not, the copy will be aborted.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn copy_in<T, U>(&self, statement: &T) -> Result<CopyInSink<U>, Error>
     where
         T: ?Sized + ToStatement,
@@ -601,6 +620,7 @@ impl Client {
     /// Executes a `COPY TO STDOUT` statement, returning a stream of the resulting data.
     ///
     /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub async fn copy_out<T>(&self, statement: &T) -> Result<CopyOutStream, Error>
     where
         T: ?Sized + ToStatement,

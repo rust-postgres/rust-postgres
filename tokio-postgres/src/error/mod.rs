@@ -345,7 +345,9 @@ enum Kind {
     ToSql(usize),
     FromSql(usize),
     Column(String),
+    #[cfg(feature = "implicit-prepared-statements")]
     ColumnCount,
+    #[cfg(feature = "implicit-prepared-statements")]
     Parameters(usize, usize),
     Closed,
     Db,
@@ -386,7 +388,9 @@ impl fmt::Display for Error {
             Kind::ToSql(idx) => write!(fmt, "error serializing parameter {idx}"),
             Kind::FromSql(idx) => write!(fmt, "error deserializing column {idx}"),
             Kind::Column(column) => write!(fmt, "invalid column `{column}`"),
+            #[cfg(feature = "implicit-prepared-statements")]
             Kind::ColumnCount => write!(fmt, "query returned an unexpected number of columns"),
+            #[cfg(feature = "implicit-prepared-statements")]
             Kind::Parameters(real, expected) => {
                 write!(fmt, "expected {expected} parameters but got {real}")
             }
@@ -477,10 +481,12 @@ impl Error {
         Error::new(Kind::Column(column), None)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     pub(crate) fn column_count() -> Error {
         Error::new(Kind::ColumnCount, None)
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     pub(crate) fn parameters(real: usize, expected: usize) -> Error {
         Error::new(Kind::Parameters(real, expected), None)
     }

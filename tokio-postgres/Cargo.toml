@@ -17,6 +17,12 @@ test = false
 [[bench]]
 name = "bench"
 harness = false
+required-features = ["implicit-prepared-statements"]
+
+[[test]]
+name = "test"
+path = "tests/test/main.rs"
+required-features = ["implicit-prepared-statements"]
 
 [package.metadata.docs.rs]
 all-features = true
