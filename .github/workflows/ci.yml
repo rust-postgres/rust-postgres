@@ -103,6 +103,8 @@ jobs:
         with:
           path: target
           key: test-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+      - run: cargo check --all-targets --all-features
+      - run: cargo check --all-targets --no-default-features
       - run: cargo test --all
       - run: cargo test --manifest-path tokio-postgres/Cargo.toml --no-default-features
       - run: cargo test --manifest-path tokio-postgres/Cargo.toml --all-features
