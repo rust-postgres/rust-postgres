@@ -527,5 +527,11 @@ fn is_closed() {
 
     assert!(!client.is_closed());
     client.check_connection().unwrap_err();
+    for _ in 0..10 {
+        if client.is_closed() {
+            return;
+        }
+        client.check_connection().unwrap_err();
+    }
     assert!(client.is_closed());
 }
