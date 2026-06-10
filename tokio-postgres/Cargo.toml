@@ -17,13 +17,20 @@ test = false
 [[bench]]
 name = "bench"
 harness = false
+required-features = ["implicit-prepared-statements"]
+
+[[test]]
+name = "test"
+path = "tests/test/main.rs"
+required-features = ["implicit-prepared-statements"]
 
 [package.metadata.docs.rs]
 all-features = true
 
 [features]
-default = ["runtime"]
+default = ["runtime", "implicit-prepared-statements"]
 runtime = ["tokio/net", "tokio/time"]
+implicit-prepared-statements = []
 
 array-impls = ["postgres-types/array-impls"]
 with-bit-vec-0_6 = ["postgres-types/with-bit-vec-0_6"]

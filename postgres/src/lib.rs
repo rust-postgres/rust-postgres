@@ -3,8 +3,12 @@
 //! # Example
 //!
 //! ```no_run
+//! #![allow(unused_imports)]
 //! use postgres::{Client, NoTls};
 //!
+//! # #[cfg(not(feature = "implicit-prepared-statements"))]
+//! # fn main() {}
+//! # #[cfg(feature = "implicit-prepared-statements")]
 //! # fn main() -> Result<(), postgres::Error> {
 //! let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
 //!
@@ -53,6 +57,7 @@
 //!
 //! | Feature | Description | Extra dependencies | Default |
 //! | ------- | ----------- | ------------------ | ------- |
+//! | `implicit-prepared-statements` | Enable APIs that implicitly create or use protocol-level named prepared statements. Disable this for poolers or platforms that do not support named prepared statements and use the typed query APIs instead. | - | yes |
 //! | `with-bit-vec-0_6` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.6 | no |
 //! | `with-bit-vec-0_7` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.7 | no |
 //! | `with-bit-vec-0_8` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.8 | no |
@@ -67,18 +72,25 @@
 //! | `with-uuid-1` | Enable support for the `uuid` crate. | [uuid](https://crates.io/crates/uuid) 1.0 | no |
 //! | `with-time-0_2` | Enable support for the 0.2 version of the `time` crate. | [time](https://crates.io/crates/time/0.2.0) 0.2 | no |
 //! | `with-time-0_3` | Enable support for the 0.3 version of the `time` crate. | [time](https://crates.io/crates/time/0.3.0) 0.3 | no |
+//!
+//! Disabling `implicit-prepared-statements` removes APIs that implicitly create or use protocol-level named prepared
+//! statements. This is intended for poolers or platforms that do not support named prepared statements; use the
+//! `query_typed` and `execute_typed` APIs in those environments.
 #![warn(clippy::all, rust_2018_idioms, missing_docs)]
 
 pub use fallible_iterator;
 pub use tokio_postgres::{
-    Column, IsolationLevel, Notification, Portal, SimpleQueryMessage, Socket, Statement,
-    ToStatement, error, row, tls, types,
+    Column, IsolationLevel, Notification, SimpleQueryMessage, Socket, error, row, tls, types,
 };
+#[cfg(feature = "implicit-prepared-statements")]
+pub use tokio_postgres::{Portal, Statement, ToStatement};
 
 pub use crate::cancel_token::CancelToken;
 pub use crate::client::*;
 pub use crate::config::Config;
+#[cfg(feature = "implicit-prepared-statements")]
 pub use crate::copy_in_writer::CopyInWriter;
+#[cfg(feature = "implicit-prepared-statements")]
 pub use crate::copy_out_reader::CopyOutReader;
 #[doc(no_inline)]
 pub use crate::error::Error;
@@ -93,19 +105,23 @@ pub use crate::tls::NoTls;
 pub use crate::transaction::*;
 pub use crate::transaction_builder::TransactionBuilder;
 
+#[cfg(feature = "implicit-prepared-statements")]
 pub mod binary_copy;
 mod cancel_token;
 mod client;
 pub mod config;
 mod connection;
+#[cfg(feature = "implicit-prepared-statements")]
 mod copy_in_writer;
+#[cfg(feature = "implicit-prepared-statements")]
 mod copy_out_reader;
 mod generic_client;
+#[cfg(feature = "implicit-prepared-statements")]
 mod lazy_pin;
 pub mod notifications;
 mod row_iter;
 mod transaction;
 mod transaction_builder;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "implicit-prepared-statements"))]
 mod test;

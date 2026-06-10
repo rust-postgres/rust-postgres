@@ -69,10 +69,15 @@
 //! combinator):
 //!
 //! ```rust
+//! # fn main() {}
+//! # #[cfg(feature = "implicit-prepared-statements")]
 //! use futures_util::future;
+//! # #[cfg(feature = "implicit-prepared-statements")]
 //! use std::future::Future;
+//! # #[cfg(feature = "implicit-prepared-statements")]
 //! use tokio_postgres::{Client, Error, Statement};
 //!
+//! # #[cfg(feature = "implicit-prepared-statements")]
 //! async fn pipelined_prepare(
 //!     client: &Client,
 //! ) -> Result<(Statement, Statement), Error>
@@ -104,6 +109,7 @@
 //! | Feature | Description | Extra dependencies | Default |
 //! | ------- | ----------- | ------------------ | ------- |
 //! | `runtime` | Enable convenience API for the connection process based on the `tokio` crate. | [tokio](https://crates.io/crates/tokio) 1.0 with the features `net` and `time` | yes |
+//! | `implicit-prepared-statements` | Enable APIs that implicitly create or use protocol-level named prepared statements. Disable this for poolers or platforms that do not support named prepared statements and use the typed query APIs instead. | - | yes |
 //! | `array-impls` | Enables `ToSql` and `FromSql` trait impls for arrays | - | no |
 //! | `with-bit-vec-0_6` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.6 | no |
 //! | `with-bit-vec-0_7` | Enable support for the `bit-vec` crate. | [bit-vec](https://crates.io/crates/bit-vec) 0.7 | no |
@@ -122,35 +128,48 @@
 //! | `with-uuid-1` | Enable support for the `uuid` crate. | [uuid](https://crates.io/crates/uuid) 1.0 | no |
 //! | `with-time-0_2` | Enable support for the 0.2 version of the `time` crate. | [time](https://crates.io/crates/time/0.2.0) 0.2 | no |
 //! | `with-time-0_3` | Enable support for the 0.3 version of the `time` crate. | [time](https://crates.io/crates/time/0.3.0) 0.3 | no |
+//!
+//! Disabling `implicit-prepared-statements` removes APIs that implicitly create or use protocol-level named prepared
+//! statements. This is intended for poolers or platforms that do not support named prepared statements; use the
+//! `query_typed` and `execute_typed` APIs in those environments.
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
 pub use crate::cancel_token::CancelToken;
 pub use crate::client::Client;
 pub use crate::config::Config;
 pub use crate::connection::Connection;
+#[cfg(feature = "implicit-prepared-statements")]
 pub use crate::copy_in::CopyInSink;
+#[cfg(feature = "implicit-prepared-statements")]
 pub use crate::copy_out::CopyOutStream;
 use crate::error::DbError;
 pub use crate::error::Error;
 pub use crate::generic_client::GenericClient;
+#[cfg(feature = "implicit-prepared-statements")]
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
 pub use crate::row::{Row, SimpleQueryRow};
 pub use crate::simple_query::{SimpleColumn, SimpleQueryStream};
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
-pub use crate::statement::{Column, Statement};
+pub use crate::statement::Column;
+#[cfg(feature = "implicit-prepared-statements")]
+pub use crate::statement::Statement;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 pub use crate::tls::NoTls;
+#[cfg(feature = "implicit-prepared-statements")]
 pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
 pub use crate::transaction_builder::{IsolationLevel, TransactionBuilder};
+#[cfg(feature = "implicit-prepared-statements")]
 use crate::types::ToSql;
 pub use fallible_iterator;
 use std::sync::Arc;
 
+#[cfg(feature = "implicit-prepared-statements")]
 pub mod binary_copy;
+#[cfg(feature = "implicit-prepared-statements")]
 mod bind;
 #[cfg(feature = "runtime")]
 mod cancel_query;
@@ -166,13 +185,16 @@ mod connect_raw;
 mod connect_socket;
 mod connect_tls;
 mod connection;
+#[cfg(feature = "implicit-prepared-statements")]
 mod copy_in;
+#[cfg(feature = "implicit-prepared-statements")]
 mod copy_out;
 pub mod error;
 mod generic_client;
 #[cfg(not(target_arch = "wasm32"))]
 mod keepalive;
 mod maybe_tls_stream;
+#[cfg(feature = "implicit-prepared-statements")]
 mod portal;
 mod prepare;
 mod query;
@@ -182,6 +204,7 @@ mod simple_query;
 mod socket;
 mod statement;
 pub mod tls;
+#[cfg(feature = "implicit-prepared-statements")]
 mod to_statement;
 mod transaction;
 mod transaction_builder;
@@ -260,6 +283,7 @@ pub enum SimpleQueryMessage {
     RowDescription(Arc<[SimpleColumn]>),
 }
 
+#[cfg(feature = "implicit-prepared-statements")]
 fn slice_iter<'a>(
     s: &'a [&'a (dyn ToSql + Sync)],
 ) -> impl ExactSizeIterator<Item = &'a dyn ToSql> + 'a {

@@ -1,6 +1,8 @@
 use crate::query::RowStream;
 use crate::types::{BorrowToSql, ToSql, Type};
-use crate::{Client, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction};
+use crate::{Client, Error, Row, SimpleQueryMessage, Transaction};
+#[cfg(feature = "implicit-prepared-statements")]
+use crate::{Statement, ToStatement};
 use async_trait::async_trait;
 
 mod private {
@@ -13,11 +15,13 @@ mod private {
 #[async_trait]
 pub trait GenericClient: private::Sealed {
     /// Like [`Client::execute`].
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like [`Client::execute_raw`].
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -33,11 +37,13 @@ pub trait GenericClient: private::Sealed {
     ) -> Result<u64, Error>;
 
     /// Like [`Client::query`].
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like [`Client::query_one`].
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query_one<T>(
         &self,
         statement: &T,
@@ -47,6 +53,7 @@ pub trait GenericClient: private::Sealed {
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like [`Client::query_opt`].
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query_opt<T>(
         &self,
         statement: &T,
@@ -56,6 +63,7 @@ pub trait GenericClient: private::Sealed {
         T: ?Sized + ToStatement + Sync + Send;
 
     /// Like [`Client::query_raw`].
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -91,9 +99,11 @@ pub trait GenericClient: private::Sealed {
         I: IntoIterator<Item = (P, Type)> + Sync + Send;
 
     /// Like [`Client::prepare`].
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn prepare(&self, query: &str) -> Result<Statement, Error>;
 
     /// Like [`Client::prepare_typed`].
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn prepare_typed(
         &self,
         query: &str,
@@ -117,6 +127,7 @@ impl private::Sealed for Client {}
 
 #[async_trait]
 impl GenericClient for Client {
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -132,6 +143,7 @@ impl GenericClient for Client {
         self.execute_typed(statement, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -142,6 +154,7 @@ impl GenericClient for Client {
         self.execute_raw(statement, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -149,6 +162,7 @@ impl GenericClient for Client {
         self.query(query, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query_one<T>(
         &self,
         statement: &T,
@@ -160,6 +174,7 @@ impl GenericClient for Client {
         self.query_one(statement, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query_opt<T>(
         &self,
         statement: &T,
@@ -171,6 +186,7 @@ impl GenericClient for Client {
         self.query_opt(statement, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -214,10 +230,12 @@ impl GenericClient for Client {
         self.query_typed_raw(statement, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.prepare(query).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn prepare_typed(
         &self,
         query: &str,
@@ -248,6 +266,7 @@ impl private::Sealed for Transaction<'_> {}
 #[async_trait]
 #[allow(clippy::needless_lifetimes)]
 impl GenericClient for Transaction<'_> {
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn execute<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -255,6 +274,7 @@ impl GenericClient for Transaction<'_> {
         self.execute(query, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn execute_raw<P, I, T>(&self, statement: &T, params: I) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -265,6 +285,7 @@ impl GenericClient for Transaction<'_> {
         self.execute_raw(statement, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -272,6 +293,7 @@ impl GenericClient for Transaction<'_> {
         self.query(query, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query_one<T>(
         &self,
         statement: &T,
@@ -283,6 +305,7 @@ impl GenericClient for Transaction<'_> {
         self.query_one(statement, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query_opt<T>(
         &self,
         statement: &T,
@@ -294,6 +317,7 @@ impl GenericClient for Transaction<'_> {
         self.query_opt(statement, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
     where
         T: ?Sized + ToStatement + Sync + Send,
@@ -337,10 +361,12 @@ impl GenericClient for Transaction<'_> {
         self.query_typed_raw(statement, params).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn prepare(&self, query: &str) -> Result<Statement, Error> {
         self.prepare(query).await
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     async fn prepare_typed(
         &self,
         query: &str,

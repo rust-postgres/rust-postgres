@@ -1,5 +1,7 @@
 use crate::connection::ConnectionRef;
-use crate::{CancelToken, CopyInWriter, CopyOutReader, Portal, RowIter, Statement, ToStatement};
+use crate::{CancelToken, RowIter};
+#[cfg(feature = "implicit-prepared-statements")]
+use crate::{CopyInWriter, CopyOutReader, Portal, Statement, ToStatement};
 use tokio_postgres::types::{BorrowToSql, ToSql, Type};
 use tokio_postgres::{Error, Row, SimpleQueryMessage};
 
@@ -46,12 +48,14 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::prepare`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.connection
             .block_on(self.transaction.as_ref().unwrap().prepare(query))
     }
 
     /// Like `Client::prepare_typed`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.connection.block_on(
             self.transaction
@@ -62,6 +66,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::execute`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -85,6 +90,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -94,6 +100,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_one`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
@@ -103,6 +110,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_opt`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query_opt<T>(
         &mut self,
         query: &T,
@@ -116,6 +124,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::query_raw`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -196,6 +205,7 @@ impl<'a> Transaction<'a> {
     /// # Panics
     ///
     /// Panics if the number of parameters provided does not match the number expected.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn bind<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Portal, Error>
     where
         T: ?Sized + ToStatement,
@@ -208,6 +218,7 @@ impl<'a> Transaction<'a> {
     ///
     /// Unlike `query`, portals can be incrementally evaluated by limiting the number of rows returned in each call to
     /// `query_portal`. If the requested number is negative or 0, all remaining rows will be returned.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query_portal(&mut self, portal: &Portal, max_rows: i32) -> Result<Vec<Row>, Error> {
         self.connection.block_on(
             self.transaction
@@ -218,6 +229,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// The maximally flexible version of `query_portal`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query_portal_raw(
         &mut self,
         portal: &Portal,
@@ -233,6 +245,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_in`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -244,6 +257,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Like `Client::copy_out`.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,

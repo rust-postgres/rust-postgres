@@ -1,4 +1,5 @@
 use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
+#[cfg(feature = "implicit-prepared-statements")]
 use crate::copy_in::CopyInReceiver;
 use crate::error::DbError;
 use crate::maybe_tls_stream::MaybeTlsStream;
@@ -19,6 +20,7 @@ use tokio_util::codec::Framed;
 
 pub enum RequestMessages {
     Single(FrontendMessage),
+    #[cfg(feature = "implicit-prepared-statements")]
     CopyIn(CopyInReceiver),
 }
 
@@ -240,6 +242,7 @@ where
                         self.state = State::Closing;
                     }
                 }
+                #[cfg(feature = "implicit-prepared-statements")]
                 RequestMessages::CopyIn(mut receiver) => {
                     let message = match receiver.poll_next_unpin(cx) {
                         Poll::Ready(Some(message)) => message,

@@ -1,7 +1,8 @@
 use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
-use crate::{Error, Statement, query, slice_iter};
+use crate::statement::Statement;
+use crate::{Error, query, slice_iter};
 use bytes::Bytes;
 use futures_util::Stream;
 use log::debug;

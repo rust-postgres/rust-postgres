@@ -1,8 +1,7 @@
 use crate::connection::Connection;
-use crate::{
-    CancelToken, Config, CopyInWriter, CopyOutReader, Notifications, RowIter, Statement,
-    ToStatement, Transaction, TransactionBuilder,
-};
+use crate::{CancelToken, Config, Notifications, RowIter, Transaction, TransactionBuilder};
+#[cfg(feature = "implicit-prepared-statements")]
+use crate::{CopyInWriter, CopyOutReader, Statement, ToStatement};
 use std::task::Poll;
 use std::time::Duration;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
@@ -60,8 +59,12 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
+    /// #![allow(unused_imports)]
     /// use postgres::{Client, NoTls};
     ///
+    /// # #[cfg(not(feature = "implicit-prepared-statements"))]
+    /// # fn main() {}
+    /// # #[cfg(feature = "implicit-prepared-statements")]
     /// # fn main() -> Result<(), postgres::Error> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
@@ -76,6 +79,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, Error>
     where
         T: ?Sized + ToStatement,
@@ -137,8 +141,12 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
+    /// #![allow(unused_imports)]
     /// use postgres::{Client, NoTls};
     ///
+    /// # #[cfg(not(feature = "implicit-prepared-statements"))]
+    /// # fn main() {}
+    /// # #[cfg(feature = "implicit-prepared-statements")]
     /// # fn main() -> Result<(), postgres::Error> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
@@ -150,6 +158,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, Error>
     where
         T: ?Sized + ToStatement,
@@ -171,8 +180,12 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
+    /// #![allow(unused_imports)]
     /// use postgres::{Client, NoTls};
     ///
+    /// # #[cfg(not(feature = "implicit-prepared-statements"))]
+    /// # fn main() {}
+    /// # #[cfg(feature = "implicit-prepared-statements")]
     /// # fn main() -> Result<(), postgres::Error> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
@@ -183,6 +196,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, Error>
     where
         T: ?Sized + ToStatement,
@@ -222,6 +236,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query_opt<T>(
         &mut self,
         query: &T,
@@ -286,6 +301,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn query_raw<T, P, I>(&mut self, query: &T, params: I) -> Result<RowIter<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -430,6 +446,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn prepare(&mut self, query: &str) -> Result<Statement, Error> {
         self.connection.block_on(self.client.prepare(query))
     }
@@ -461,6 +478,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn prepare_typed(&mut self, query: &str, types: &[Type]) -> Result<Statement, Error> {
         self.connection
             .block_on(self.client.prepare_typed(query, types))
@@ -489,6 +507,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn copy_in<T>(&mut self, query: &T) -> Result<CopyInWriter<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -517,6 +536,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn copy_out<T>(&mut self, query: &T) -> Result<CopyOutReader<'_>, Error>
     where
         T: ?Sized + ToStatement,
@@ -584,8 +604,12 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
+    /// #![allow(unused_imports)]
     /// use postgres::{Client, NoTls};
     ///
+    /// # #[cfg(not(feature = "implicit-prepared-statements"))]
+    /// # fn main() {}
+    /// # #[cfg(feature = "implicit-prepared-statements")]
     /// # fn main() -> Result<(), postgres::Error> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///
@@ -610,8 +634,12 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
+    /// #![allow(unused_imports)]
     /// use postgres::{Client, IsolationLevel, NoTls};
     ///
+    /// # #[cfg(not(feature = "implicit-prepared-statements"))]
+    /// # fn main() {}
+    /// # #[cfg(feature = "implicit-prepared-statements")]
     /// # fn main() -> Result<(), postgres::Error> {
     /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
     ///

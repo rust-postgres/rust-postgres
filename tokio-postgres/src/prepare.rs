@@ -1,19 +1,32 @@
+#[cfg(feature = "implicit-prepared-statements")]
+use crate::Column;
+use crate::Error;
 use crate::client::InnerClient;
+#[cfg(feature = "implicit-prepared-statements")]
 use crate::codec::FrontendMessage;
+#[cfg(feature = "implicit-prepared-statements")]
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
+use crate::query;
+#[cfg(feature = "implicit-prepared-statements")]
+use crate::statement::Statement;
+use crate::types::ToSql;
 use crate::types::{Field, Kind, Oid, Type};
-use crate::{Column, Error, Statement};
-use crate::{query, slice_iter};
+#[cfg(feature = "implicit-prepared-statements")]
 use bytes::Bytes;
+#[cfg(feature = "implicit-prepared-statements")]
 use fallible_iterator::FallibleIterator;
 use futures_util::TryStreamExt;
+#[cfg(feature = "implicit-prepared-statements")]
 use log::debug;
+#[cfg(feature = "implicit-prepared-statements")]
 use postgres_protocol::message::backend::Message;
+#[cfg(feature = "implicit-prepared-statements")]
 use postgres_protocol::message::frontend;
 use std::future::Future;
 use std::pin::{Pin, pin};
 use std::sync::Arc;
+#[cfg(feature = "implicit-prepared-statements")]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const TYPEINFO_QUERY: &str = "\
@@ -56,8 +69,10 @@ AND attnum > 0
 ORDER BY attnum
 ";
 
+#[cfg(feature = "implicit-prepared-statements")]
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(feature = "implicit-prepared-statements")]
 pub async fn prepare(
     client: &Arc<InnerClient>,
     query: &str,
@@ -109,14 +124,7 @@ pub async fn prepare(
     Ok(Statement::new(client, name, parameters, columns))
 }
 
-fn prepare_rec<'a>(
-    client: &'a Arc<InnerClient>,
-    query: &'a str,
-    types: &'a [Type],
-) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send>> {
-    Box::pin(prepare(client, query, types))
-}
-
+#[cfg(feature = "implicit-prepared-statements")]
 fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
     if types.is_empty() {
         debug!("preparing query {name}: {query}");
@@ -141,9 +149,7 @@ pub(crate) async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type
         return Ok(type_);
     }
 
-    let stmt = typeinfo_statement(client).await?;
-
-    let mut rows = pin!(query::query(client, stmt, slice_iter(&[&oid])).await?);
+    let mut rows = pin!(typeinfo_query(client, oid).await?);
 
     let row = match rows.try_next().await? {
         Some(row) => row,
@@ -192,54 +198,39 @@ fn get_type_rec<'a>(
     Box::pin(get_type(client, oid))
 }
 
-async fn typeinfo_statement(client: &Arc<InnerClient>) -> Result<Statement, Error> {
-    if let Some(stmt) = client.typeinfo() {
-        return Ok(stmt);
-    }
-
-    let stmt = match prepare_rec(client, TYPEINFO_QUERY, &[]).await {
-        Ok(stmt) => stmt,
+async fn typeinfo_query(client: &Arc<InnerClient>, oid: Oid) -> Result<query::RowStream, Error> {
+    match query_typeinfo_typed(client, TYPEINFO_QUERY, oid).await {
+        Ok(rows) => Ok(rows),
         Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_TABLE) => {
-            prepare_rec(client, TYPEINFO_FALLBACK_QUERY, &[]).await?
+            query_typeinfo_typed(client, TYPEINFO_FALLBACK_QUERY, oid).await
         }
-        Err(e) => return Err(e),
-    };
-
-    client.set_typeinfo(&stmt);
-    Ok(stmt)
+        Err(e) => Err(e),
+    }
 }
 
 async fn get_enum_variants(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<String>, Error> {
-    let stmt = typeinfo_enum_statement(client).await?;
-
-    query::query(client, stmt, slice_iter(&[&oid]))
+    typeinfo_enum_query(client, oid)
         .await?
         .and_then(|row| async move { row.try_get(0) })
         .try_collect()
         .await
 }
 
-async fn typeinfo_enum_statement(client: &Arc<InnerClient>) -> Result<Statement, Error> {
-    if let Some(stmt) = client.typeinfo_enum() {
-        return Ok(stmt);
-    }
-
-    let stmt = match prepare_rec(client, TYPEINFO_ENUM_QUERY, &[]).await {
-        Ok(stmt) => stmt,
+async fn typeinfo_enum_query(
+    client: &Arc<InnerClient>,
+    oid: Oid,
+) -> Result<query::RowStream, Error> {
+    match query_typeinfo_typed(client, TYPEINFO_ENUM_QUERY, oid).await {
+        Ok(rows) => Ok(rows),
         Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_COLUMN) => {
-            prepare_rec(client, TYPEINFO_ENUM_FALLBACK_QUERY, &[]).await?
+            query_typeinfo_typed(client, TYPEINFO_ENUM_FALLBACK_QUERY, oid).await
         }
-        Err(e) => return Err(e),
-    };
-
-    client.set_typeinfo_enum(&stmt);
-    Ok(stmt)
+        Err(e) => Err(e),
+    }
 }
 
 async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<Field>, Error> {
-    let stmt = typeinfo_composite_statement(client).await?;
-
-    let rows = query::query(client, stmt, slice_iter(&[&oid]))
+    let rows = typeinfo_composite_query(client, oid)
         .await?
         .try_collect::<Vec<_>>()
         .await?;
@@ -255,13 +246,22 @@ async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec
     Ok(fields)
 }
 
-async fn typeinfo_composite_statement(client: &Arc<InnerClient>) -> Result<Statement, Error> {
-    if let Some(stmt) = client.typeinfo_composite() {
-        return Ok(stmt);
-    }
+async fn typeinfo_composite_query(
+    client: &Arc<InnerClient>,
+    oid: Oid,
+) -> Result<query::RowStream, Error> {
+    query_typeinfo_typed(client, TYPEINFO_COMPOSITE_QUERY, oid).await
+}
 
-    let stmt = prepare_rec(client, TYPEINFO_COMPOSITE_QUERY, &[]).await?;
-
-    client.set_typeinfo_composite(&stmt);
-    Ok(stmt)
+async fn query_typeinfo_typed(
+    client: &Arc<InnerClient>,
+    query_text: &str,
+    oid: Oid,
+) -> Result<query::RowStream, Error> {
+    Box::pin(query::query_typed(
+        client,
+        query_text,
+        std::iter::once((&oid as &(dyn ToSql + Sync), Type::OID)),
+    ))
+    .await
 }

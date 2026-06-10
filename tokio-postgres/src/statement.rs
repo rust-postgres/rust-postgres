@@ -36,6 +36,7 @@ impl Drop for StatementInner {
 pub struct Statement(Arc<StatementInner>);
 
 impl Statement {
+    #[cfg(feature = "implicit-prepared-statements")]
     pub(crate) fn new(
         inner: &Arc<InnerClient>,
         name: String,
@@ -59,11 +60,13 @@ impl Statement {
         }))
     }
 
+    #[cfg(feature = "implicit-prepared-statements")]
     pub(crate) fn name(&self) -> &str {
         &self.0.name
     }
 
     /// Returns the expected types of the statement's parameters.
+    #[cfg(feature = "implicit-prepared-statements")]
     pub fn params(&self) -> &[Type] {
         &self.0.params
     }

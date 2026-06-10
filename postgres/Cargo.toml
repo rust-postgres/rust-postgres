@@ -14,11 +14,14 @@ rust-version = "1.85"
 [[bench]]
 name = "bench"
 harness = false
+required-features = ["implicit-prepared-statements"]
 
 [package.metadata.docs.rs]
 all-features = true
 
 [features]
+default = ["implicit-prepared-statements"]
+implicit-prepared-statements = ["tokio-postgres/implicit-prepared-statements"]
 array-impls = ["tokio-postgres/array-impls"]
 with-bit-vec-0_6 = ["tokio-postgres/with-bit-vec-0_6"]
 with-bit-vec-0_7 = ["tokio-postgres/with-bit-vec-0_7"]
@@ -47,7 +50,9 @@ futures-util = { version = "0.3.14", default-features = false, features = [
   "sink",
 ] }
 log = "0.4"
-tokio-postgres = { version = "0.7.17", path = "../tokio-postgres" }
+tokio-postgres = { version = "0.7.17", path = "../tokio-postgres", default-features = false, features = [
+  "runtime",
+] }
 tokio = { version = "1.0", features = ["rt", "time"] }
 
 [dev-dependencies]
