@@ -13,8 +13,8 @@ use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::types::{Oid, ToSql, Type};
 use crate::{
-    CancelToken, CopyInSink, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
-    TransactionBuilder, copy_in, copy_out, prepare, query, simple_query, slice_iter,
+    CancelToken, CopyInSink, Error, FromRow, Row, SimpleQueryMessage, Statement, ToStatement,
+    Transaction, TransactionBuilder, copy_in, copy_out, prepare, query, simple_query, slice_iter,
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
@@ -262,6 +262,25 @@ impl Client {
             .await
     }
 
+    /// Executes a statement, returning a vector of values built from the resulting rows.
+    ///
+    /// This method returns owned values and cannot be used with mappings that borrow from rows.
+    /// Borrowed mappings should call [`FromRow::from_row`] directly while the [`Row`] is alive.
+    pub async fn query_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<R>, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        self.query(statement, params)
+            .await?
+            .iter()
+            .map(R::from_row)
+            .collect()
+    }
+
     /// Returns a vector of scalars.
     pub async fn query_scalar<R: FromSqlOwned, T>(
         &self,
@@ -307,6 +326,36 @@ impl Client {
         self.query_opt(statement, params)
             .await
             .and_then(|res| res.ok_or_else(Error::row_count))
+    }
+
+    /// Like [`Client::query_one`] but returns a value built from the row.
+    ///
+    /// This method returns an owned value and cannot be used with mappings that borrow from rows.
+    /// Borrowed mappings should call [`FromRow::from_row`] directly while the [`Row`] is alive.
+    ///
+    /// ```compile_fail
+    /// use tokio_postgres::FromRow;
+    ///
+    /// #[derive(FromRow)]
+    /// struct User<'a> {
+    ///     name: &'a str,
+    /// }
+    ///
+    /// async fn load(client: &tokio_postgres::Client) -> Result<User<'_>, tokio_postgres::Error> {
+    ///     client.query_one_as::<User<'_>>("SELECT name FROM users", &[]).await
+    /// }
+    /// ```
+    pub async fn query_one_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<R, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        let row = self.query_one(statement, params).await?;
+
+        R::from_row(&row)
     }
 
     /// Like [`Client::query_one`] but returns one scalar.
@@ -363,6 +412,24 @@ impl Client {
         }
 
         Ok(first)
+    }
+
+    /// Like [`Client::query_opt`] but returns an optional value built from the row.
+    ///
+    /// This method returns an owned value and cannot be used with mappings that borrow from rows.
+    /// Borrowed mappings should call [`FromRow::from_row`] directly while the [`Row`] is alive.
+    pub async fn query_opt_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<R>, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        self.query_opt(statement, params)
+            .await?
+            .map(|row| R::from_row(&row))
+            .transpose()
     }
 
     /// Like [`Client::query_opt`] but returns an optional scalar.

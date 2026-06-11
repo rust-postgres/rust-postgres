@@ -1925,10 +1925,22 @@ dependencies = [
  "time 0.2.27",
  "time 0.3.45",
  "tokio",
+ "tokio-postgres-derive",
  "tokio-util",
+ "trybuild",
  "uuid 0.8.2",
  "uuid 1.23.2",
  "whoami",
+]
+
+[[package]]
+name = "tokio-postgres-derive"
+version = "0.1.0"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]

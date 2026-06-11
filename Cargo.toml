@@ -8,6 +8,7 @@ members = [
     "postgres-openssl",
     "postgres-protocol",
     "postgres-types",
+    "tokio-postgres-derive",
     "tokio-postgres",
 ]
 resolver = "2"

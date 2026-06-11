@@ -1,0 +1,5 @@
+error: invalid rename_all rule, expected one of: "lowercase", "UPPERCASE", "PascalCase", "camelCase", "snake_case", "SCREAMING_SNAKE_CASE", "kebab-case", "SCREAMING-KEBAB-CASE", "Train-Case"
+ --> tests/derive/fail/invalid_rename_rule.rs:4:25
+  |
+4 | #[postgres(rename_all = "invalid")]
+  |                         ^^^^^^^^^

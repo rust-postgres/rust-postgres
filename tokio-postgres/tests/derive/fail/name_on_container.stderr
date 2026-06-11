@@ -1,0 +1,5 @@
+error: name is a field attribute for FromRow
+ --> tests/derive/fail/name_on_container.rs:4:12
+  |
+4 | #[postgres(name = "users")]
+  |            ^^^^

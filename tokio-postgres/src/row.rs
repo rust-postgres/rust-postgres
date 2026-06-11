@@ -94,6 +94,20 @@ where
     }
 }
 
+/// A type that can be built from a query row.
+///
+/// The implementation should decode each field from the row using [`Row::try_get`],
+/// preserving the normal [`FromSql`] behavior for each column value.
+///
+/// Implementations may borrow from the row. Convenience methods such as
+/// [`Client::query_as`](crate::Client::query_as), [`Client::query_one_as`](crate::Client::query_one_as),
+/// and [`Client::query_opt_as`](crate::Client::query_opt_as) return owned values, so borrowed
+/// mappings must call [`FromRow::from_row`] directly while the row is alive.
+pub trait FromRow<'a>: Sized {
+    /// Builds `Self` from a query row.
+    fn from_row(row: &'a Row) -> Result<Self, Error>;
+}
+
 /// A row of data returned from the database by a query.
 #[derive(Clone)]
 pub struct Row {

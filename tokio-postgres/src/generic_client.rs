@@ -1,6 +1,6 @@
 use crate::query::RowStream;
 use crate::types::{BorrowToSql, ToSql, Type};
-use crate::{Client, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction};
+use crate::{Client, Error, FromRow, Row, SimpleQueryMessage, Statement, ToStatement, Transaction};
 use async_trait::async_trait;
 
 mod private {
@@ -37,6 +37,18 @@ pub trait GenericClient: private::Sealed {
     where
         T: ?Sized + ToStatement + Sync + Send;
 
+    /// Like [`Client::query_as`].
+    async fn query_as<R>(
+        &self,
+        query: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<R>, Error>
+    where
+        R: for<'a> FromRow<'a> + Send,
+    {
+        self.client().query_as(query, params).await
+    }
+
     /// Like [`Client::query_one`].
     async fn query_one<T>(
         &self,
@@ -46,6 +58,18 @@ pub trait GenericClient: private::Sealed {
     where
         T: ?Sized + ToStatement + Sync + Send;
 
+    /// Like [`Client::query_one_as`].
+    async fn query_one_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<R, Error>
+    where
+        R: for<'a> FromRow<'a> + Send,
+    {
+        self.client().query_one_as(statement, params).await
+    }
+
     /// Like [`Client::query_opt`].
     async fn query_opt<T>(
         &self,
@@ -54,6 +78,18 @@ pub trait GenericClient: private::Sealed {
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
+
+    /// Like [`Client::query_opt_as`].
+    async fn query_opt_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<R>, Error>
+    where
+        R: for<'a> FromRow<'a> + Send,
+    {
+        self.client().query_opt_as(statement, params).await
+    }
 
     /// Like [`Client::query_raw`].
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
