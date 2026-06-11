@@ -19,6 +19,8 @@ use tokio_postgres::{
 };
 
 mod binary_copy;
+#[cfg(feature = "runtime")]
+mod bind_execute_many;
 mod parse;
 #[cfg(feature = "runtime")]
 mod runtime;

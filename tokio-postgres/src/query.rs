@@ -13,6 +13,7 @@ use postgres_protocol::message::backend::{CommandCompleteBody, Message};
 use postgres_protocol::message::frontend;
 use postgres_types::Type;
 use std::fmt;
+use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll, ready};
@@ -378,5 +379,98 @@ pub async fn sync(client: &InnerClient) -> Result<(), Error> {
     match responses.next().await? {
         Message::ReadyForQuery(_) => Ok(()),
         _ => Err(Error::unexpected_message()),
+    }
+}
+
+/// 32 KiB per buffer chunk — matches asyncpg's `_EXECUTE_MANY_BUF_SIZE`.
+const BIND_EXECUTE_MANY_BUF_SIZE: usize = 32_768;
+
+/// Number of chunks per send batch — matches asyncpg's `_EXECUTE_MANY_BUF_NUM`.
+///
+/// One trailing `Sync` is appended per batch, so at most 4 × 32 KiB ≈ 128 KiB accumulates
+/// before a flush.
+const BIND_EXECUTE_MANY_BUF_COUNT: usize = 4;
+
+/// Executes a prepared statement against many parameter-sets using pipelined Bind/Execute frames.
+///
+/// Bind and Execute frames for each parameter-set are accumulated into a shared buffer. When the
+/// buffer reaches [`BIND_EXECUTE_MANY_BUF_SIZE`] × [`BIND_EXECUTE_MANY_BUF_COUNT`] bytes, a
+/// single `Sync` is appended and the whole batch is sent to the server in one call. The server
+/// processes all pairs under that single Sync, returning `BindComplete` / `CommandComplete`
+/// messages before the final `ReadyForQuery`.
+///
+/// Returns the sum of row-affected counts across all parameter-sets.
+pub async fn bind_execute_many<P, I, J>(
+    client: &InnerClient,
+    statement: &Statement,
+    params_sets: I,
+) -> Result<u64, Error>
+where
+    I: IntoIterator<Item = J>,
+    J: IntoIterator<Item = P>,
+    J::IntoIter: ExactSizeIterator,
+    P: BorrowToSql,
+{
+    bind_execute_many_with_flush_threshold(
+        client,
+        statement,
+        params_sets,
+        BIND_EXECUTE_MANY_BUF_SIZE * BIND_EXECUTE_MANY_BUF_COUNT,
+    )
+    .await
+}
+
+pub async fn bind_execute_many_with_flush_threshold<P, I, J>(
+    client: &InnerClient,
+    statement: &Statement,
+    params_sets: I,
+    flush_threshold: usize,
+) -> Result<u64, Error>
+where
+    I: IntoIterator<Item = J>,
+    J: IntoIterator<Item = P>,
+    J::IntoIter: ExactSizeIterator,
+    P: BorrowToSql,
+{
+    let mut total_rows: u64 = 0;
+    let mut buf = BytesMut::new();
+
+    for params in params_sets {
+        encode_bind(statement, params, "", &mut buf)?;
+        frontend::execute("", 0, &mut buf).map_err(Error::encode)?;
+
+        if buf.len() >= flush_threshold {
+            frontend::sync(&mut buf);
+            total_rows = total_rows
+                .checked_add(drain_batch(client, buf.split().freeze()).await?)
+                .ok_or_else(|| Error::encode(io::Error::other("row count overflow")))?;
+        }
+    }
+
+    if !buf.is_empty() {
+        frontend::sync(&mut buf);
+        total_rows = total_rows
+            .checked_add(drain_batch(client, buf.split().freeze()).await?)
+            .ok_or_else(|| Error::encode(io::Error::other("row count overflow")))?;
+    }
+
+    Ok(total_rows)
+}
+
+async fn drain_batch(client: &InnerClient, buf: Bytes) -> Result<u64, Error> {
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+    let mut rows: u64 = 0;
+
+    loop {
+        match responses.next().await? {
+            Message::BindComplete | Message::DataRow(_) | Message::EmptyQueryResponse => {}
+            Message::CommandComplete(body) => {
+                rows = rows
+                    .checked_add(extract_row_affected(&body)?)
+                    .ok_or_else(|| Error::encode(io::Error::other("row count overflow")))?;
+            }
+            Message::ReadyForQuery(_) => return Ok(rows),
+            _ => return Err(Error::unexpected_message()),
+        }
     }
 }
