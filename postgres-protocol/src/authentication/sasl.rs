@@ -391,7 +391,7 @@ impl<'a> Parser<'a> {
     }
 
     fn value(&mut self) -> io::Result<&'a str> {
-        self.take_while(|c| matches!(c, '\0' | '=' | ','))
+        self.take_while(|c| !matches!(c, '\0' | '=' | ','))
     }
 
     fn server_error(&mut self) -> io::Result<Option<&'a str>> {
