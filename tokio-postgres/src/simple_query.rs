@@ -10,6 +10,7 @@ use log::debug;
 use pin_project_lite::pin_project;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
+use postgres_types::Oid;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll, ready};
@@ -18,16 +19,32 @@ use std::task::{Context, Poll, ready};
 #[derive(Debug)]
 pub struct SimpleColumn {
     name: String,
+    type_oid: Oid,
+    type_modifier: i32,
 }
 
 impl SimpleColumn {
-    pub(crate) fn new(name: String) -> SimpleColumn {
-        SimpleColumn { name }
+    pub(crate) fn new(name: String, type_oid: Oid, type_modifier: i32) -> SimpleColumn {
+        SimpleColumn {
+            name,
+            type_oid,
+            type_modifier,
+        }
     }
 
     /// Returns the name of the column.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns the OID of the column type.
+    pub fn type_oid(&self) -> Oid {
+        self.type_oid
+    }
+
+    /// Returns the modifier of the column type.
+    pub fn type_modifier(&self) -> i32 {
+        self.type_modifier
     }
 }
 
@@ -93,7 +110,13 @@ impl Stream for SimpleQueryStream {
             Message::RowDescription(body) => {
                 let columns: Arc<[SimpleColumn]> = body
                     .fields()
-                    .map(|f| Ok(SimpleColumn::new(f.name().to_string())))
+                    .map(|f| {
+                        Ok(SimpleColumn::new(
+                            f.name().to_string(),
+                            f.type_oid(),
+                            f.type_modifier(),
+                        ))
+                    })
                     .collect::<Vec<_>>()
                     .map_err(Error::parse)?
                     .into();

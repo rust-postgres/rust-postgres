@@ -340,9 +340,10 @@ async fn simple_query() {
         .simple_query(
             "CREATE TEMPORARY TABLE foo (
                 id SERIAL,
-                name TEXT
+                name TEXT,
+                description VARCHAR(50)
             );
-            INSERT INTO foo (name) VALUES ('steven'), ('joe');
+            INSERT INTO foo (name, description) VALUES ('steven', 'a'), ('joe', 'b');
             SELECT * FROM foo ORDER BY id;",
         )
         .await
@@ -358,26 +359,76 @@ async fn simple_query() {
     }
     match &messages[2] {
         SimpleQueryMessage::RowDescription(columns) => {
-            assert_eq!(columns.get(0).map(|c| c.name()), Some("id"));
-            assert_eq!(columns.get(1).map(|c| c.name()), Some("name"));
+            assert_eq!(
+                columns
+                    .get(0)
+                    .map(|c| (c.name(), c.type_oid(), c.type_modifier())),
+                Some(("id", Type::INT4.oid(), -1))
+            );
+            assert_eq!(
+                columns
+                    .get(1)
+                    .map(|c| (c.name(), c.type_oid(), c.type_modifier())),
+                Some(("name", Type::TEXT.oid(), -1))
+            );
+            assert_eq!(
+                columns
+                    .get(2)
+                    .map(|c| (c.name(), c.type_oid(), c.type_modifier())),
+                Some(("description", Type::VARCHAR.oid(), 54))
+            );
         }
         _ => panic!("unexpected message"),
     }
     match &messages[3] {
         SimpleQueryMessage::Row(row) => {
-            assert_eq!(row.columns().get(0).map(|c| c.name()), Some("id"));
-            assert_eq!(row.columns().get(1).map(|c| c.name()), Some("name"));
+            assert_eq!(
+                row.columns()
+                    .get(0)
+                    .map(|c| (c.name(), c.type_oid(), c.type_modifier())),
+                Some(("id", Type::INT4.oid(), -1))
+            );
+            assert_eq!(
+                row.columns()
+                    .get(1)
+                    .map(|c| (c.name(), c.type_oid(), c.type_modifier())),
+                Some(("name", Type::TEXT.oid(), -1))
+            );
+            assert_eq!(
+                row.columns()
+                    .get(2)
+                    .map(|c| (c.name(), c.type_oid(), c.type_modifier())),
+                Some(("description", Type::VARCHAR.oid(), 54))
+            );
             assert_eq!(row.get(0), Some("1"));
             assert_eq!(row.get(1), Some("steven"));
+            assert_eq!(row.get(2), Some("a"));
         }
         _ => panic!("unexpected message"),
     }
     match &messages[4] {
         SimpleQueryMessage::Row(row) => {
-            assert_eq!(row.columns().get(0).map(|c| c.name()), Some("id"));
-            assert_eq!(row.columns().get(1).map(|c| c.name()), Some("name"));
+            assert_eq!(
+                row.columns()
+                    .get(0)
+                    .map(|c| (c.name(), c.type_oid(), c.type_modifier())),
+                Some(("id", Type::INT4.oid(), -1))
+            );
+            assert_eq!(
+                row.columns()
+                    .get(1)
+                    .map(|c| (c.name(), c.type_oid(), c.type_modifier())),
+                Some(("name", Type::TEXT.oid(), -1))
+            );
+            assert_eq!(
+                row.columns()
+                    .get(2)
+                    .map(|c| (c.name(), c.type_oid(), c.type_modifier())),
+                Some(("description", Type::VARCHAR.oid(), 54))
+            );
             assert_eq!(row.get(0), Some("2"));
             assert_eq!(row.get(1), Some("joe"));
+            assert_eq!(row.get(2), Some("b"));
         }
         _ => panic!("unexpected message"),
     }
