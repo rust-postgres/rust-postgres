@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.4.9 - 2026-06-12
+
+### Fixed
+
+* Error instead of panicking on duplicate composite field names.
+
 ## v0.4.8 - 2026-03-30
 
 ### Changed

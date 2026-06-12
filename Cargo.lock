@@ -1196,7 +1196,7 @@ dependencies = [
 
 [[package]]
 name = "postgres-derive"
-version = "0.4.8"
+version = "0.4.9"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1239,7 +1239,7 @@ dependencies = [
 
 [[package]]
 name = "postgres-protocol"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "base64",
  "byteorder",
