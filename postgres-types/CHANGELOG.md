@@ -1,5 +1,15 @@
 # Change Log
 
+## v0.2.14 - 2026-06-12
+
+### Added
+
+* Added `FromSql` implementation for `Cow<str>`.
+
+### Fixed
+
+* Avoid panic decoding out-of-range `time` 0.2 date/timestamp values.
+
 ## v0.2.13 - 2026-03-30
 
 ### Added
