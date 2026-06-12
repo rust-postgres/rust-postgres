@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.7.18 - 2026-06-12
+
+### Fixed
+
+* Error instead of panicking on DataRow field/column count mismatch.
+
 ## v0.7.17 - 2026-03-30
 
 ### Added
