@@ -445,6 +445,20 @@ mod test {
         assert_eq!(message.iteration_count, 4096);
     }
 
+    #[test]
+    fn parse_server_error_message() {
+        let message = "e=invalid-proof";
+        match Parser::new(message).server_final_message().unwrap() {
+            ServerFinalMessage::Error(error) => assert_eq!(error, "invalid-proof"),
+            ServerFinalMessage::Verifier(_) => panic!("expected server error"),
+        }
+
+        // the error value ends at the first '\0', '=' or ','
+        for message in ["invalid-proof\0x", "invalid-proof=x", "invalid-proof,x"] {
+            assert_eq!(Parser::new(message).value().unwrap(), "invalid-proof");
+        }
+    }
+
     // recorded auth exchange from psql
     #[test]
     fn exchange() {
