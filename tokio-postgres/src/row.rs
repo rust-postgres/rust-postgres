@@ -8,6 +8,7 @@ use crate::{Error, Statement};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::DataRowBody;
 use std::fmt;
+use std::io;
 use std::ops::Range;
 use std::str;
 use std::sync::Arc;
@@ -113,11 +114,21 @@ impl fmt::Debug for Row {
 impl Row {
     pub(crate) fn new(statement: Statement, body: DataRowBody) -> Result<Row, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
-        Ok(Row {
+        let row = Row {
             statement,
             body,
             ranges,
-        })
+        };
+        // The DataRow field count is sent by the server independently of the
+        // RowDescription column count; a mismatch would make column accessors
+        // index `ranges` out of bounds and panic, so reject it up front.
+        if row.ranges.len() != row.statement.columns().len() {
+            return Err(Error::parse(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "DataRow field count does not match the number of columns",
+            )));
+        }
+        Ok(row)
     }
 
     /// Returns information about the columns of data in the row.
@@ -217,11 +228,21 @@ impl SimpleQueryRow {
         body: DataRowBody,
     ) -> Result<SimpleQueryRow, Error> {
         let ranges = body.ranges().collect().map_err(Error::parse)?;
-        Ok(SimpleQueryRow {
+        let row = SimpleQueryRow {
             columns,
             body,
             ranges,
-        })
+        };
+        // The DataRow field count is sent by the server independently of the
+        // RowDescription column count; a mismatch would make column accessors
+        // index `ranges` out of bounds and panic, so reject it up front.
+        if row.ranges.len() != row.columns.len() {
+            return Err(Error::parse(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "DataRow field count does not match the number of columns",
+            )));
+        }
+        Ok(row)
     }
 
     /// Returns information about the columns of data in the row.
@@ -276,5 +297,58 @@ impl SimpleQueryRow {
 
         let buf = self.ranges[idx].clone().map(|r| &self.body.buffer()[r]);
         FromSql::from_sql_nullable(&Type::TEXT, buf).map_err(|e| Error::from_sql(e, idx))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use bytes::BytesMut;
+    use postgres_protocol::message::backend::{DataRowBody, Message};
+
+    use super::*;
+
+    fn data_row(field_count: u16, fields: &[&[u8]]) -> DataRowBody {
+        let mut body = BytesMut::new();
+        body.extend_from_slice(&field_count.to_be_bytes());
+        for field in fields {
+            body.extend_from_slice(&(field.len() as i32).to_be_bytes());
+            body.extend_from_slice(field);
+        }
+
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(b"D");
+        buf.extend_from_slice(&(body.len() as i32 + 4).to_be_bytes());
+        buf.extend_from_slice(&body);
+
+        match Message::parse(&mut buf).unwrap().unwrap() {
+            Message::DataRow(body) => body,
+            _ => unreachable!("expected DataRow"),
+        }
+    }
+
+    fn column(name: &str) -> Column {
+        Column {
+            name: name.to_string(),
+            table_oid: None,
+            column_id: None,
+            type_modifier: 0,
+            r#type: Type::TEXT,
+        }
+    }
+
+    #[test]
+    fn fewer_data_row_fields_than_columns_is_rejected() {
+        // a server advertising two columns but sending a DataRow with a single
+        // field would make column accessors index out of bounds and panic.
+        let body = data_row(1, &[b""]);
+        let statement = Statement::unnamed(vec![], vec![column("a"), column("b")]);
+        assert!(Row::new(statement, body).is_err());
+    }
+
+    #[test]
+    fn matching_data_row_field_count_is_accepted() {
+        let body = data_row(2, &[b"x", b"y"]);
+        let statement = Statement::unnamed(vec![], vec![column("a"), column("b")]);
+        assert!(Row::new(statement, body).is_ok());
     }
 }
