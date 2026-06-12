@@ -10,9 +10,30 @@ const fn base() -> PrimitiveDateTime {
     PrimitiveDateTime::new(date!(2000-01-01), time!(00:00:00))
 }
 
+// `time` 0.2 represents years in the range -100_000..=100_000 and its `Add`
+// implementations panic (rather than returning an error) when the result falls
+// outside that range. Unlike `time` 0.3 it has no `checked_add`, so the
+// resulting Julian day is validated against the representable range before the
+// add is performed.
+fn date_in_range(julian_day: i64) -> bool {
+    let min = Date::try_from_ymd(-100_000, 1, 1)
+        .expect("year is in range")
+        .julian_day();
+    let max = Date::try_from_ymd(100_000, 12, 31)
+        .expect("year is in range")
+        .julian_day();
+    (min..=max).contains(&julian_day)
+}
+
 impl<'a> FromSql<'a> for PrimitiveDateTime {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<PrimitiveDateTime, Box<dyn Error + Sync + Send>> {
         let t = types::timestamp_from_sql(raw)?;
+        // adding the sub-day remainder can shift the date by at most one day, so
+        // a one-day margin guarantees the add below cannot overflow the range.
+        let julian_day = base().date().julian_day() + Duration::microseconds(t).whole_days();
+        if !date_in_range(julian_day - 1) || !date_in_range(julian_day + 1) {
+            return Err("value too large to decode".into());
+        }
         Ok(base() + Duration::microseconds(t))
     }
 
@@ -62,6 +83,10 @@ impl ToSql for OffsetDateTime {
 impl<'a> FromSql<'a> for Date {
     fn from_sql(_: &Type, raw: &[u8]) -> Result<Date, Box<dyn Error + Sync + Send>> {
         let jd = types::date_from_sql(raw)?;
+        let julian_day = base().date().julian_day() + i64::from(jd);
+        if !date_in_range(julian_day) {
+            return Err("value too large to decode".into());
+        }
         Ok(base().date() + Duration::days(i64::from(jd)))
     }
 
@@ -103,4 +128,35 @@ impl ToSql for Time {
 
     accepts!(TIME);
     to_sql_checked!();
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn date_out_of_range_errors() {
+        // a value that would land outside `time`'s representable year range must
+        // error rather than panic.
+        let raw = i32::MAX.to_be_bytes();
+        assert!(<Date as FromSql>::from_sql(&Type::DATE, &raw).is_err());
+    }
+
+    #[test]
+    fn date_in_range_decodes() {
+        let raw = 1_000i32.to_be_bytes();
+        assert!(<Date as FromSql>::from_sql(&Type::DATE, &raw).is_ok());
+    }
+
+    #[test]
+    fn timestamp_out_of_range_errors() {
+        let raw = 9_000_000_000_000_000_000i64.to_be_bytes();
+        assert!(<PrimitiveDateTime as FromSql>::from_sql(&Type::TIMESTAMP, &raw).is_err());
+    }
+
+    #[test]
+    fn timestamp_in_range_decodes() {
+        let raw = 0i64.to_be_bytes();
+        assert!(<PrimitiveDateTime as FromSql>::from_sql(&Type::TIMESTAMP, &raw).is_ok());
+    }
 }
