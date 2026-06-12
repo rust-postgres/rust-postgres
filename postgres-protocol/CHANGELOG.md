@@ -1,5 +1,13 @@
 # Change Log
 
+## v0.6.12 - 2026-06-12
+
+### Fixed
+
+* Bound SCRAM iteration count to 100,000 to prevent DoS.
+* Error instead of panicking on out-of-bounds hstore key/value length.
+* Fix inverted character match in SCRAM error value parser.
+
 ## v0.6.11 - 2026-03-30
 
 ### Changed
