@@ -230,7 +230,9 @@ fn composite_body(ident: &Ident, fields: &[Field]) -> TokenStream {
 
         std::result::Result::Ok(#ident {
             #(
-                #field_idents: #temp_vars.unwrap(),
+                // A field is left unset if the server's composite type omitted it
+                // (e.g. reported a duplicate field name); error rather than panic.
+                #field_idents: #temp_vars.ok_or("composite type is missing a field")?,
             )*
         })
     }

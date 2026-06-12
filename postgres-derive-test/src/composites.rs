@@ -346,3 +346,38 @@ fn generics() {
         },
     );
 }
+
+#[test]
+fn duplicate_composite_field_name_does_not_panic() {
+    use postgres_types::{Field, Kind, Type};
+
+    // A malicious server can report a composite type whose field list contains a
+    // duplicate name; the generated `from_sql` then leaves one struct field
+    // unset. This must surface as an error rather than panicking.
+    #[derive(FromSql, Debug)]
+    #[allow(dead_code)]
+    struct Dup {
+        a: i32,
+        b: i32,
+    }
+
+    let ty = Type::new(
+        "Dup".to_string(),
+        0,
+        Kind::Composite(vec![
+            Field::new("a".to_string(), Type::INT4),
+            Field::new("a".to_string(), Type::INT4),
+        ]),
+        "public".to_string(),
+    );
+
+    let raw: &[u8] = &[
+        0, 0, 0, 2, // field count: 2
+        0, 0, 0, 23, // field 0 oid: INT4
+        0, 0, 0, 4, 0, 0, 0, 1, // field 0 value: 1
+        0, 0, 0, 23, // field 1 oid: INT4 (duplicate name "a")
+        0, 0, 0, 4, 0, 0, 0, 1, // field 1 value: 1
+    ];
+
+    assert!(<Dup as FromSql>::from_sql(&ty, raw).is_err());
+}
