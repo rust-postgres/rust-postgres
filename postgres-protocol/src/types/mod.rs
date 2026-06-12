@@ -273,7 +273,10 @@ impl<'a> FallibleIterator for HstoreEntries<'a> {
         if key_len < 0 {
             return Err("invalid key length".into());
         }
-        let (key, buf) = self.buf.split_at(key_len as usize);
+        let (key, buf) = self
+            .buf
+            .split_at_checked(key_len as usize)
+            .ok_or("invalid key length")?;
         let key = str::from_utf8(key)?;
         self.buf = buf;
 
@@ -281,7 +284,10 @@ impl<'a> FallibleIterator for HstoreEntries<'a> {
         let value = if value_len < 0 {
             None
         } else {
-            let (value, buf) = self.buf.split_at(value_len as usize);
+            let (value, buf) = self
+                .buf
+                .split_at_checked(value_len as usize)
+                .ok_or("invalid value length")?;
             let value = str::from_utf8(value)?;
             self.buf = buf;
             Some(value)
