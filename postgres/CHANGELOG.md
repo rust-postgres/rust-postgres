@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.19.14 - 2026-06-12
+
+### Changed
+
+* Updated `tokio-postgres` to v0.7.18.
+
 ## v0.19.13 - 2026-03-30
 
 ### Added
