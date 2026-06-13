@@ -623,6 +623,27 @@ impl Client {
         query::execute(self.inner(), statement, params).await
     }
 
+    /// The maximally flexible version of [`execute_typed`].
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// Compared to `execute`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
+    ///
+    /// [`execute_typed`]: #method.execute_typed
+    pub async fn execute_typed_raw<P, I>(&self, statement: &str, params: I) -> Result<u64, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        query::execute_typed(self.inner(), statement, params).await
+    }
+
     /// Executes a `COPY FROM STDIN` statement, returning a sink used to write the copy data.
     ///
     /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any. The copy *must*
