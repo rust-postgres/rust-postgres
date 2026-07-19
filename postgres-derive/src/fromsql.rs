@@ -6,7 +6,7 @@ use syn::{
     GenericParam, Generics, Ident, Lifetime, PathArguments, PathSegment, punctuated::Punctuated,
     token,
 };
-use syn::{LifetimeParam, TraitBound, TraitBoundModifier, TypeParamBound};
+use syn::{LifetimeParam, TraitBound, TraitBoundModifiers, TypeParamBound};
 
 use crate::accepts;
 use crate::composites::Field;
@@ -264,7 +264,8 @@ fn new_fromsql_bound(lifetime: &Lifetime) -> TypeParamBound {
 
     TypeParamBound::Trait(TraitBound {
         lifetimes: None,
-        modifier: TraitBoundModifier::None,
+        modifiers: TraitBoundModifiers::default(),
+        maybe: None,
         paren_token: None,
         path: new_derive_path(path_segment),
     })

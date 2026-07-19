@@ -2,7 +2,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use std::iter;
 use syn::{
-    Data, DataStruct, DeriveInput, Error, Fields, Ident, TraitBound, TraitBoundModifier,
+    Data, DataStruct, DeriveInput, Error, Fields, Ident, TraitBound, TraitBoundModifiers,
     TypeParamBound,
 };
 
@@ -214,7 +214,8 @@ fn composite_body(fields: &[Field]) -> TokenStream {
 fn new_tosql_bound() -> TypeParamBound {
     TypeParamBound::Trait(TraitBound {
         lifetimes: None,
-        modifier: TraitBoundModifier::None,
+        modifiers: TraitBoundModifiers::default(),
+        maybe: None,
         paren_token: None,
         path: new_derive_path(Ident::new("ToSql", Span::call_site()).into()),
     })
