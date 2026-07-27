@@ -14,7 +14,7 @@ default = []
 js = ["getrandom/wasm_js"]
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 byteorder = "1.0"
 bytes = "1.11"
 fallible-iterator = "0.2"
