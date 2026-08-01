@@ -139,7 +139,14 @@ fn composite_in_domain_in_composite() {
     }
 
     let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
-    conn.batch_execute("CREATE TYPE leaf_composite AS (prim integer); CREATE DOMAIN domain AS leaf_composite; CREATE TYPE root_composite AS (domain domain);").unwrap();
+    conn.batch_execute(
+        "
+            CREATE TYPE pg_temp.leaf_composite AS (prim integer);
+            CREATE DOMAIN pg_temp.domain AS pg_temp.leaf_composite;
+            CREATE TYPE pg_temp.root_composite AS (domain pg_temp.domain);
+        ",
+    )
+    .unwrap();
 
     test_type(
         &mut conn,

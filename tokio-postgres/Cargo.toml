@@ -17,6 +17,7 @@ test = false
 [[bench]]
 name = "bench"
 harness = false
+required-features = ["runtime"]
 
 [package.metadata.docs.rs]
 all-features = true

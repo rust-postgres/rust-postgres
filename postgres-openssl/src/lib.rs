@@ -47,7 +47,6 @@
 //! ```
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
-#[cfg(feature = "runtime")]
 use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
@@ -73,6 +72,7 @@ use tokio_postgres::tls::{ChannelBinding, TlsConnect};
 #[cfg(test)]
 mod test;
 
+#[cfg(feature = "runtime")]
 type ConfigCallback =
     dyn Fn(&mut ConnectConfiguration, &str) -> Result<(), ErrorStack> + Sync + Send;
 
