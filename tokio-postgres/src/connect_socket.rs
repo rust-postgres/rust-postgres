@@ -1,6 +1,8 @@
 use crate::client::Addr;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::keepalive::KeepaliveConfig;
 use crate::{Error, Socket};
+#[cfg(not(target_arch = "wasm32"))]
 use socket2::{SockRef, TcpKeepalive};
 use std::future::Future;
 use std::io;
@@ -17,7 +19,7 @@ pub(crate) async fn connect_socket(
     #[cfg_attr(not(target_os = "linux"), allow(unused_variables))] tcp_user_timeout: Option<
         Duration,
     >,
-    keepalive_config: Option<&KeepaliveConfig>,
+    #[cfg(not(target_arch = "wasm32"))] keepalive_config: Option<&KeepaliveConfig>,
 ) -> Result<Socket, Error> {
     match addr {
         Addr::Tcp(ip) => {
@@ -26,19 +28,22 @@ pub(crate) async fn connect_socket(
 
             stream.set_nodelay(true).map_err(Error::connect)?;
 
-            let sock_ref = SockRef::from(&stream);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let sock_ref = SockRef::from(&stream);
 
-            #[cfg(target_os = "linux")]
-            if let Some(tcp_user_timeout) = tcp_user_timeout {
-                sock_ref
-                    .set_tcp_user_timeout(Some(tcp_user_timeout))
-                    .map_err(Error::connect)?;
-            }
+                #[cfg(target_os = "linux")]
+                if let Some(tcp_user_timeout) = tcp_user_timeout {
+                    sock_ref
+                        .set_tcp_user_timeout(Some(tcp_user_timeout))
+                        .map_err(Error::connect)?;
+                }
 
-            if let Some(keepalive_config) = keepalive_config {
-                sock_ref
-                    .set_tcp_keepalive(&TcpKeepalive::from(keepalive_config))
-                    .map_err(Error::connect)?;
+                if let Some(keepalive_config) = keepalive_config {
+                    sock_ref
+                        .set_tcp_keepalive(&TcpKeepalive::from(keepalive_config))
+                        .map_err(Error::connect)?;
+                }
             }
 
             Ok(Socket::new_tcp(stream))
