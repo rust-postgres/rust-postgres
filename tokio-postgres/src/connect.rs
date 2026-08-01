@@ -12,6 +12,12 @@ use std::task::Poll;
 use std::{cmp, io};
 use tokio::net;
 
+#[cfg(unix)]
+/// The fallback unix socket path for when `host` is `None` or the empty string.
+///
+/// Used only when the `hostaddr` vec is empty.
+const UNIX_FALLBACK: &str = "/run/postgresql";
+
 pub async fn connect<T>(
     mut tls: T,
     config: &Config,
@@ -19,6 +25,7 @@ pub async fn connect<T>(
 where
     T: MakeTlsConnect<Socket>,
 {
+    #[cfg(not(unix))]
     if config.host.is_empty() && config.hostaddr.is_empty() {
         return Err(Error::config("both host and hostaddr are missing".into()));
     }
@@ -36,13 +43,16 @@ where
     }
 
     // At this point, either one of the following two scenarios could happen:
-    // (1) either config.host or config.hostaddr must be empty;
+    // (1) either config.host or config.hostaddr (or both) must be empty;
     // (2) if both config.host and config.hostaddr are NOT empty; their lengths must be equal.
     let num_hosts = cmp::max(config.host.len(), config.hostaddr.len());
 
     if config.port.len() > 1 && config.port.len() != num_hosts {
         return Err(Error::config("invalid number of ports".into()));
     }
+
+    // If everything is empty, attempt 1 connection with the default values.
+    let num_hosts = cmp::max(num_hosts, 1);
 
     let mut indices = (0..num_hosts).collect::<Vec<_>>();
     if config.load_balance_hosts == LoadBalanceHosts::Random {
@@ -73,7 +83,15 @@ where
         // fallback to host if hostaddr is not present.
         let addr = match hostaddr {
             Some(ipaddr) => Host::Tcp(ipaddr.to_string()),
+            #[cfg(not(unix))]
+            // Will not panic, with this cfg we've errored above if both hostaddr and host are empty
             None => host.cloned().unwrap(),
+            #[cfg(unix)]
+            None => match host {
+                None => Host::Unix(UNIX_FALLBACK.into()),
+                Some(Host::Tcp(s)) if s.is_empty() => Host::Unix(UNIX_FALLBACK.into()),
+                Some(host) => host.clone(),
+            },
         };
 
         match connect_host(addr, hostname, port, &mut tls, config).await {
