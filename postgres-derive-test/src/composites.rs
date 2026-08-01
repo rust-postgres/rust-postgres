@@ -45,6 +45,65 @@ fn defaults() {
 }
 
 #[test]
+fn nested() {
+    #[derive(FromSql, ToSql, Debug, PartialEq)]
+    struct InventoryBundle {
+        a: InventoryItem,
+        b: InventoryItem,
+    }
+
+    #[derive(FromSql, ToSql, Debug, PartialEq)]
+    struct InventoryItem {
+        name: String,
+        supplier_id: i32,
+        price: Option<f64>,
+    }
+
+    let mut conn = Client::connect("user=postgres host=localhost port=5433", NoTls).unwrap();
+    conn.batch_execute(
+        "CREATE TYPE pg_temp.\"InventoryItem\" AS (
+            name TEXT,
+            supplier_id INT,
+            price DOUBLE PRECISION
+        );",
+    )
+    .unwrap();
+    conn.batch_execute(
+        "CREATE TYPE pg_temp.\"InventoryBundle\" AS (
+            a pg_temp.\"InventoryItem\",
+            b pg_temp.\"InventoryItem\"
+        );",
+    )
+    .unwrap();
+
+    let item = InventoryItem {
+        name: "foobar".to_owned(),
+        supplier_id: 100,
+        price: Some(15.50),
+    };
+
+    let item_null = InventoryItem {
+        name: "foobar".to_owned(),
+        supplier_id: 100,
+        price: None,
+    };
+
+    let bundle = InventoryBundle {
+        a: item,
+        b: item_null,
+    };
+
+    test_type(
+        &mut conn,
+        "\"InventoryBundle\"",
+        &[(
+            bundle,
+            "ROW(ROW('foobar', 100, 15.50), ROW('foobar', 100, NULL))",
+        )],
+    );
+}
+
+#[test]
 fn name_overrides() {
     #[derive(FromSql, ToSql, Debug, PartialEq)]
     #[postgres(name = "inventory_item")]
