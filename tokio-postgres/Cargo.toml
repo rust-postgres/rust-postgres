@@ -48,7 +48,6 @@ with-time-0_3 = ["postgres-types/with-time-0_3"]
 js = ["postgres-protocol/js", "postgres-types/js"]
 
 [dependencies]
-async-trait = "0.1"
 bytes = "1.11"
 byteorder = "1.0"
 fallible-iterator = "0.2"
