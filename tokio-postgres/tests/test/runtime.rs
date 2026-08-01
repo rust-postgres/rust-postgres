@@ -27,6 +27,13 @@ async fn unix_socket() {
 }
 
 #[tokio::test]
+#[cfg(target_os = "linux")]
+#[ignore] // FIXME doesn't work with our docker-based tests :(
+async fn linux_abstract_socket() {
+    smoke_test("host=@rust-postgres").await;
+}
+
+#[tokio::test]
 async fn tcp() {
     smoke_test("host=localhost port=5433 user=postgres").await;
 }
