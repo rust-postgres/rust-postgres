@@ -14,11 +14,37 @@ pub fn transparent_body(field: &syn::Field) -> TokenStream {
     }
 }
 
-pub fn domain_body(name: &str, field: &syn::Field) -> TokenStream {
+pub fn matches_type(schema: Option<&str>, name: &str) -> TokenStream {
+    if let Some(schema) = schema {
+        quote! {
+            type_.schema() == #schema && type_.name() == #name
+        }
+    } else {
+        quote! {
+            type_.name() == #name
+        }
+    }
+}
+
+pub fn not_matches_type(schema: Option<&str>, name: &str) -> TokenStream {
+    if let Some(schema) = schema {
+        quote! {
+            type_.schema() != #schema || type_.name() != #name
+        }
+    } else {
+        quote! {
+            type_.name() != #name
+        }
+    }
+}
+
+pub fn domain_body(schema: Option<&str>, name: &str, field: &syn::Field) -> TokenStream {
     let ty = &field.ty;
 
+    let wrong_type = not_matches_type(schema, name);
+
     quote! {
-        if type_.name() != #name {
+        if #wrong_type {
             return false;
         }
 
@@ -31,17 +57,22 @@ pub fn domain_body(name: &str, field: &syn::Field) -> TokenStream {
     }
 }
 
-pub fn enum_body(name: &str, variants: &[Variant], allow_mismatch: bool) -> TokenStream {
+pub fn enum_body(
+    schema: Option<&str>,
+    name: &str,
+    variants: &[Variant],
+    allow_mismatch: bool,
+) -> TokenStream {
     let num_variants = variants.len();
     let variant_names = variants.iter().map(|v| &v.name);
 
     if allow_mismatch {
-        quote! {
-            type_.name() == #name
-        }
+        // simply return true if the type matches
+        matches_type(schema, name)
     } else {
+        let wrong_type = not_matches_type(schema, name);
         quote! {
-            if type_.name() != #name {
+            if #wrong_type {
                 return false;
             }
 
@@ -66,15 +97,22 @@ pub fn enum_body(name: &str, variants: &[Variant], allow_mismatch: bool) -> Toke
     }
 }
 
-pub fn composite_body(name: &str, trait_: &str, fields: &[Field]) -> TokenStream {
+pub fn composite_body(
+    schema: Option<&str>,
+    name: &str,
+    trait_: &str,
+    fields: &[Field],
+) -> TokenStream {
     let num_fields = fields.len();
     let trait_ = Ident::new(trait_, Span::call_site());
     let traits = iter::repeat(&trait_);
     let field_names = fields.iter().map(|f| &f.name);
     let field_types = fields.iter().map(|f| &f.type_);
 
+    let wrong_type = not_matches_type(schema, name);
+
     quote! {
-        if type_.name() != #name {
+        if #wrong_type {
             return false;
         }
 

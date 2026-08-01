@@ -17,12 +17,16 @@ use crate::overrides::Overrides;
 pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs, true)?;
 
-    if (overrides.name.is_some() || overrides.rename_all.is_some()) && overrides.transparent {
+    if (overrides.name.is_some() || overrides.schema.is_some() || overrides.rename_all.is_some())
+        && overrides.transparent
+    {
         return Err(Error::new_spanned(
             &input,
-            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")] or #[postgres(rename_all = \"...\")]",
+            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")], #[postgres(schema = \"...\")], or #[postgres(rename_all = \"...\")]",
         ));
     }
+
+    let schema: Option<&str> = overrides.schema.as_deref();
 
     let name = overrides
         .name
@@ -57,7 +61,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
                     .map(|variant| Variant::parse(variant, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    accepts::enum_body(&name, &variants, overrides.allow_mismatch),
+                    accepts::enum_body(schema, &name, &variants, overrides.allow_mismatch),
                     enum_body(&input.ident, &variants),
                 )
             }
@@ -77,7 +81,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
                     .map(|variant| Variant::parse(variant, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    accepts::enum_body(&name, &variants, overrides.allow_mismatch),
+                    accepts::enum_body(schema, &name, &variants, overrides.allow_mismatch),
                     enum_body(&input.ident, &variants),
                 )
             }
@@ -87,7 +91,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
             }) if fields.unnamed.len() == 1 => {
                 let field = fields.unnamed.first().unwrap();
                 (
-                    domain_accepts_body(&name, field),
+                    domain_accepts_body(schema, &name, field),
                     domain_body(&input.ident, field),
                 )
             }
@@ -101,7 +105,7 @@ pub fn expand_derive_fromsql(input: DeriveInput) -> Result<TokenStream, Error> {
                     .map(|field| Field::parse(field, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    accepts::composite_body(&name, "FromSql", &fields),
+                    accepts::composite_body(schema, &name, "FromSql", &fields),
                     composite_body(&input.ident, &fields),
                 )
             }
@@ -163,9 +167,9 @@ fn enum_body(ident: &Ident, variants: &[Variant]) -> TokenStream {
 }
 
 // Domains are sometimes but not always just represented by the bare type (!?)
-fn domain_accepts_body(name: &str, field: &syn::Field) -> TokenStream {
+fn domain_accepts_body(schema: Option<&str>, name: &str, field: &syn::Field) -> TokenStream {
     let ty = &field.ty;
-    let normal_body = accepts::domain_body(name, field);
+    let normal_body = accepts::domain_body(schema, name, field);
 
     quote! {
         if <#ty as postgres_types::FromSql>::accepts(type_) {
