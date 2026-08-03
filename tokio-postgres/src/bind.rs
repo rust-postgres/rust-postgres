@@ -1,6 +1,7 @@
 use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
+use crate::dropguard::DropGuard;
 use crate::types::BorrowToSql;
 use crate::{Error, Portal, Statement, query};
 use postgres_protocol::message::backend::Message;
@@ -29,10 +30,14 @@ where
 
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
+    // Owns the portal name until `Portal::new` below takes over.
+    let close_guard = DropGuard::new(|| client.close(b'P', &name));
+
     match responses.next().await? {
         Message::BindComplete => {}
         _ => return Err(Error::unexpected_message()),
     }
 
+    close_guard.disarm();
     Ok(Portal::new(client, name, statement))
 }

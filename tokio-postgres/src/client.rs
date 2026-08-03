@@ -786,6 +786,20 @@ impl Client {
         self.inner.sender.is_closed()
     }
 
+    /// Destroys a savepoint, merging its work into the enclosing transaction.
+    ///
+    /// Unlike `ROLLBACK TO`, which leaves the savepoint defined, this removes it
+    /// entirely. Used to undo a `SAVEPOINT` whose `Transaction` was never built.
+    pub(crate) fn release_savepoint(&self, name: &str) {
+        let buf = self.inner().with_buf(|buf| {
+            frontend::query(&format!("RELEASE SAVEPOINT {name}"), buf).unwrap();
+            buf.split().freeze()
+        });
+        let _ = self
+            .inner()
+            .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
+    }
+
     #[doc(hidden)]
     pub fn __private_api_rollback(&self, name: Option<&str>) {
         let buf = self.inner().with_buf(|buf| {

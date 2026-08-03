@@ -1,6 +1,7 @@
 use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
+use crate::dropguard::DropGuard;
 use crate::error::SqlState;
 use crate::types::{Field, Kind, Oid, Type};
 use crate::{Column, Error, Statement};
@@ -67,6 +68,10 @@ pub async fn prepare(
     let buf = encode(client, &name, query, types)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
+    // Owns the statement name until `Statement::new` below takes over. The
+    // nested `prepare` calls in `get_type` each arm their own.
+    let close_guard = DropGuard::new(|| client.close(b'S', &name));
+
     match responses.next().await? {
         Message::ParseComplete => {}
         _ => return Err(Error::unexpected_message()),
@@ -106,6 +111,7 @@ pub async fn prepare(
         }
     }
 
+    close_guard.disarm();
     Ok(Statement::new(client, name, parameters, columns))
 }
 

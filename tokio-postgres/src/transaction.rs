@@ -1,6 +1,7 @@
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::copy_out::CopyOutStream;
+use crate::dropguard::DropGuard;
 use crate::query::RowStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -332,7 +333,18 @@ impl<'a> Transaction<'a> {
         let depth = self.savepoint.as_ref().map_or(0, |sp| sp.depth) + 1;
         let name = name.unwrap_or_else(|| format!("sp_{depth}"));
         let query = format!("SAVEPOINT {name}");
-        self.batch_execute(&query).await?;
+
+        // Owns the savepoint until the `Transaction` below takes over. A
+        // redundant `RELEASE` errors, unlike a redundant `Close`, so this
+        // disarms on failure too. `RELEASE` rather than `ROLLBACK TO` because
+        // nothing ran inside the savepoint and `ROLLBACK TO` would leave it
+        // defined.
+        {
+            let cleaner = DropGuard::new(|| self.client.release_savepoint(&name));
+            let result = self.batch_execute(&query).await;
+            cleaner.disarm();
+            result?;
+        }
 
         Ok(Transaction {
             client: self.client,
