@@ -153,6 +153,21 @@ impl InnerClient {
         buffer.clear();
         r
     }
+
+    /// Closes a named prepared statement (`b'S'`) or portal (`b'P'`).
+    ///
+    /// Fire-and-forget: if the connection is gone then so is the session, and
+    /// with it the object being closed. Closing a name that does not exist is
+    /// explicitly not an error in the protocol, so callers do not have to know
+    /// whether the object was really created.
+    pub fn close(&self, target: u8, name: &str) {
+        let buf = self.with_buf(|buf| {
+            frontend::close(target, name, buf).unwrap();
+            frontend::sync(buf);
+            buf.split().freeze()
+        });
+        let _ = self.send(RequestMessages::Single(FrontendMessage::Raw(buf)));
+    }
 }
 
 #[cfg(feature = "runtime")]

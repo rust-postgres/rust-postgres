@@ -1,8 +1,5 @@
 use crate::client::InnerClient;
-use crate::codec::FrontendMessage;
-use crate::connection::RequestMessages;
 use crate::types::Type;
-use postgres_protocol::message::frontend;
 use std::sync::{Arc, Weak};
 
 struct StatementInner {
@@ -19,12 +16,7 @@ impl Drop for StatementInner {
             return;
         }
         if let Some(client) = self.client.upgrade() {
-            let buf = client.with_buf(|buf| {
-                frontend::close(b'S', &self.name, buf).unwrap();
-                frontend::sync(buf);
-                buf.split().freeze()
-            });
-            let _ = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)));
+            client.close(b'S', &self.name);
         }
     }
 }
