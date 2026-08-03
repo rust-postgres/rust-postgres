@@ -1,3 +1,4 @@
+use crate::dropguard::DropGuard;
 use crate::{Client, Error, Transaction};
 
 /// The isolation level of a database transaction.
@@ -106,33 +107,11 @@ impl<'a> TransactionBuilder<'a> {
             query.push_str(s);
         }
 
-        struct RollbackIfNotDone<'me> {
-            client: &'me Client,
-            done: bool,
-        }
-
-        impl Drop for RollbackIfNotDone<'_> {
-            fn drop(&mut self) {
-                if self.done {
-                    return;
-                }
-
-                self.client.__private_api_rollback(None);
-            }
-        }
-
-        // This is done as `Future` created by this method can be dropped after
-        // `RequestMessages` is synchronously send to the `Connection` by
-        // `batch_execute()`, but before `Responses` is asynchronously polled to
-        // completion. In that case `Transaction` won't be created and thus
-        // won't be rolled back.
+        // Owns the transaction until the `Transaction` below takes over.
         {
-            let mut cleaner = RollbackIfNotDone {
-                client: self.client,
-                done: false,
-            };
+            let cleaner = DropGuard::new(|| self.client.__private_api_rollback(None));
             self.client.batch_execute(&query).await?;
-            cleaner.done = true;
+            cleaner.disarm();
         }
 
         Ok(Transaction::new(self.client))
