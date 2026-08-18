@@ -1050,6 +1050,67 @@ async fn query_typed_one() {
 }
 
 #[tokio::test]
+async fn query_typed_raw_exposes_columns_before_rows() {
+    let client = connect("user=postgres").await;
+
+    let stream = client
+        .query_typed_raw(
+            "SELECT 1::INT4 AS value",
+            std::iter::empty::<(&i32, Type)>(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(stream.columns()[0].name(), "value");
+    assert_eq!(stream.columns()[0].type_(), &Type::INT4);
+
+    let mut stream = pin!(stream);
+    assert_eq!(
+        stream.try_next().await.unwrap().unwrap().get::<_, i32>(0),
+        1
+    );
+    assert!(stream.try_next().await.unwrap().is_none());
+    assert_eq!(stream.columns()[0].name(), "value");
+
+    let empty_stream = client
+        .query_typed_raw(
+            "SELECT 1::INT4 AS value WHERE false",
+            std::iter::empty::<(&i32, Type)>(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(empty_stream.columns()[0].name(), "value");
+    assert_eq!(empty_stream.columns()[0].type_(), &Type::INT4);
+
+    let mut empty_stream = pin!(empty_stream);
+    assert!(empty_stream.try_next().await.unwrap().is_none());
+    assert_eq!(empty_stream.columns()[0].type_(), &Type::INT4);
+}
+
+#[tokio::test]
+async fn query_raw_exposes_columns_before_rows() {
+    let client = connect("user=postgres").await;
+
+    for query in [
+        "SELECT 1::INT4 AS value",
+        "SELECT 1::INT4 AS value WHERE false",
+    ] {
+        let statement = client.prepare(query).await.unwrap();
+        let stream = client
+            .query_raw(&statement, std::iter::empty::<&i32>())
+            .await
+            .unwrap();
+        assert_eq!(stream.columns().len(), 1);
+        assert_eq!(stream.columns()[0].name(), "value");
+        assert_eq!(stream.columns()[0].type_(), &Type::INT4);
+
+        let mut stream = pin!(stream);
+        while stream.try_next().await.unwrap().is_some() {}
+        assert_eq!(stream.columns()[0].name(), "value");
+        assert_eq!(stream.columns()[0].type_(), &Type::INT4);
+    }
+}
+
+#[tokio::test]
 async fn query_opt() {
     let client = connect("user=postgres").await;
 

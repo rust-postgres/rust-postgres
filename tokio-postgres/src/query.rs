@@ -363,6 +363,14 @@ impl Stream for RowStream {
 }
 
 impl RowStream {
+    /// Returns information about the columns returned by the query.
+    ///
+    /// The metadata is available before the stream is polled, including when
+    /// the query returns no rows.
+    pub fn columns(&self) -> &[Column] {
+        self.statement.columns()
+    }
+
     /// Returns the number of rows affected by the query.
     ///
     /// This function will return `None` until the stream has been exhausted.
