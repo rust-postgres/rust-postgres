@@ -169,6 +169,16 @@ async fn pipelined_prepare() {
 }
 
 #[tokio::test]
+async fn statement_name() {
+    let client = connect("user=postgres").await;
+
+    let statement = client.prepare("SELECT 1").await.unwrap();
+    // A prepared statement is assigned a server-side name we can read back and
+    // use as a cache key.
+    assert!(!statement.name().is_empty());
+}
+
+#[tokio::test]
 async fn prepare_type_modifier() {
     let client = connect("user=postgres").await;
 

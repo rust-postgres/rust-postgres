@@ -59,7 +59,13 @@ impl Statement {
         }))
     }
 
-    pub(crate) fn name(&self) -> &str {
+    /// Returns the name of the prepared statement.
+    ///
+    /// This is the name assigned by the server when the statement was prepared.
+    /// Unnamed (single-use) statements return an empty string. The name is
+    /// useful as a stable key when building a statement cache on top of the
+    /// client.
+    pub fn name(&self) -> &str {
         &self.0.name
     }
 
