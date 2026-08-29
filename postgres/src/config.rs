@@ -5,7 +5,9 @@
 use crate::Client;
 use crate::connection::Connection;
 use log::info;
+use std::error;
 use std::fmt;
+use std::future::Future;
 use std::net::IpAddr;
 use std::path::Path;
 use std::str::FromStr;
@@ -15,6 +17,7 @@ use tokio::runtime;
 #[doc(inline)]
 pub use tokio_postgres::config::{
     ChannelBinding, Host, LoadBalanceHosts, SslMode, SslNegotiation, TargetSessionAttrs,
+    TokenProvider,
 };
 use tokio_postgres::error::DbError;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
@@ -86,6 +89,8 @@ use tokio_postgres::{Error, Socket};
 ///     `disable`, hosts and addresses will be tried in the order provided. If set to `random`, hosts will be tried
 ///     in a random order, and the IP addresses resolved from a hostname will also be tried in a random order. Defaults
 ///     to `disable`.
+/// * `token_provider` - a source of OAuth 2.0 bearer tokens for `OAUTHBEARER` authentication. There is no
+///     connection-string key for this; it can only be set with [`Config::token_provider`].
 ///
 /// ## Examples
 ///
@@ -428,6 +433,23 @@ impl Config {
     /// Gets the host load balancing behavior.
     pub fn get_load_balance_hosts(&self) -> LoadBalanceHosts {
         self.config.get_load_balance_hosts()
+    }
+
+    /// Sets the source of OAuth 2.0 bearer tokens used for `OAUTHBEARER` authentication.
+    ///
+    /// See [`tokio_postgres::Config::token_provider`].
+    pub fn token_provider<F, Fut>(&mut self, provider: F) -> &mut Config
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<String, Box<dyn error::Error + Sync + Send>>> + Send + 'static,
+    {
+        self.config.token_provider(provider);
+        self
+    }
+
+    /// Gets the source of OAuth 2.0 bearer tokens, if one has been set.
+    pub fn get_token_provider(&self) -> Option<&TokenProvider> {
+        self.config.get_token_provider()
     }
 
     /// Sets the notice callback.
