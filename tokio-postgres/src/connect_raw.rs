@@ -1,6 +1,8 @@
 use crate::codec::{BackendMessage, BackendMessages, FrontendMessage, PostgresCodec};
 use crate::config::{self, Config};
 use crate::connect_tls::connect_tls;
+#[cfg(feature = "gss")]
+use crate::gss;
 use crate::maybe_tls_stream::MaybeTlsStream;
 use crate::tls::{TlsConnect, TlsStream};
 use crate::{Client, Connection, Error};
@@ -79,16 +81,22 @@ where
     }
 }
 
+// The third parameter carries the host NAME rather than a bool. The
+// Kerberos SPN is `service/host`, so the auth step needs the host NAME, not just
+// whether one exists — and this crate-private function was the only place the
+// name was already available and then discarded. `has_hostname` is recovered as
+// `hostname.is_some()` below, so TLS behaviour is unchanged.
 pub async fn connect_raw<S, T>(
     stream: S,
     tls: T,
-    has_hostname: bool,
+    hostname: Option<&str>,
     config: &Config,
 ) -> Result<(Client, Connection<S, T::Stream>), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsConnect<S>,
 {
+    let has_hostname = hostname.is_some();
     let stream = connect_tls(
         stream,
         config.ssl_mode,
@@ -110,7 +118,7 @@ where
     };
 
     startup(&mut stream, config, &user).await?;
-    authenticate(&mut stream, config, &user).await?;
+    authenticate(&mut stream, config, &user, hostname).await?;
     let (process_id, secret_key, parameters) = read_info(&mut stream).await?;
 
     let (sender, receiver) = mpsc::unbounded();
@@ -160,6 +168,8 @@ async fn authenticate<S, T>(
     stream: &mut StartupStream<S, T>,
     config: &Config,
     user: &str,
+    // Needed to build the Kerberos SPN; unused otherwise.
+    #[cfg_attr(not(feature = "gss"), allow(unused_variables))] hostname: Option<&str>,
 ) -> Result<(), Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -194,10 +204,31 @@ where
         Some(Message::AuthenticationSasl(body)) => {
             authenticate_sasl(stream, body, config).await?;
         }
-        Some(Message::AuthenticationKerberosV5)
-        | Some(Message::AuthenticationScmCredential)
-        | Some(Message::AuthenticationGss)
-        | Some(Message::AuthenticationSspi) => {
+        // Kerberos (GSSAPI/SSPI) — see the `gss` module.
+        //
+        // Only Gss (tag 7) and Sspi (tag 9) get the new path. KerberosV5 (tag 2)
+        // is the obsolete protocol-v2 method that no modern server sends, and
+        // ScmCredential (tag 6) is unix-socket peer credentials — both keep the
+        // original refusal below.
+        Some(Message::AuthenticationGss) | Some(Message::AuthenticationSspi) => {
+            #[cfg(feature = "gss")]
+            {
+                // Returns true only if the server's AuthenticationOk was already
+                // consumed inside the exchange, in which case there is nothing
+                // left for the tail of this function to read.
+                if gss::authenticate_gss(stream, config, hostname).await? {
+                    return Ok(());
+                }
+            }
+            #[cfg(not(feature = "gss"))]
+            {
+                // Without the feature this crate behaves exactly like upstream.
+                return Err(Error::authentication(
+                    "unsupported authentication method".into(),
+                ));
+            }
+        }
+        Some(Message::AuthenticationKerberosV5) | Some(Message::AuthenticationScmCredential) => {
             return Err(Error::authentication(
                 "unsupported authentication method".into(),
             ));

@@ -235,6 +235,11 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
+    // Kerberos (GSSAPI/SSPI) — see the `gss` module.
+    pub(crate) krbsrvname: Option<String>,
+    pub(crate) gss_principal: Option<String>,
+    pub(crate) gss_password: Option<String>,
+    pub(crate) gss_keytab: Option<String>,
 }
 
 impl Default for Config {
@@ -269,8 +274,70 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
+            // All None, so a Config built the normal way behaves exactly as it
+            // did before Kerberos existed until Kerberos is asked for.
+            krbsrvname: None,
+            gss_principal: None,
+            gss_password: None,
+            gss_keytab: None,
         }
     }
+
+    // ---- Kerberos (GSSAPI/SSPI) --------------------------------------------
+    // `krbsrvname` mirrors the libpq
+    // keyword of the same name; the other three have no libpq equivalent because
+    // libpq only ever uses ambient credentials.
+
+    /// Sets the Kerberos service name — the service half of the SPN.
+    ///
+    /// Defaults to `postgres`, matching libpq's `krbsrvname`.
+    pub fn krbsrvname(&mut self, krbsrvname: impl Into<String>) -> &mut Config {
+        self.krbsrvname = Some(krbsrvname.into());
+        self
+    }
+
+    /// Gets the Kerberos service name, if one has been configured.
+    pub fn get_krbsrvname(&self) -> Option<&str> {
+        self.krbsrvname.as_deref()
+    }
+
+    /// Sets an explicit Kerberos client principal, e.g. `user@REALM`.
+    ///
+    /// When unset, the ambient credentials are used: the default ticket cache on
+    /// Unix, or the Windows logon session. An explicit principal is required on a
+    /// host that is not joined to the realm, where there are no ambient
+    /// credentials to find.
+    pub fn gss_principal(&mut self, principal: impl Into<String>) -> &mut Config {
+        self.gss_principal = Some(principal.into());
+        self
+    }
+
+    /// Gets the explicit Kerberos client principal, if one has been configured.
+    pub fn get_gss_principal(&self) -> Option<&str> {
+        self.gss_principal.as_deref()
+    }
+
+    /// Sets the password used to acquire credentials for `gss_principal`.
+    ///
+    /// Ignored unless `gss_principal` is also set.
+    pub fn gss_password(&mut self, password: impl Into<String>) -> &mut Config {
+        self.gss_password = Some(password.into());
+        self
+    }
+
+    /// Sets a client keytab to acquire Kerberos credentials from (Unix only).
+    ///
+    /// Ignored on Windows, which has no keytab concept for client credentials.
+    pub fn gss_keytab(&mut self, keytab: impl Into<String>) -> &mut Config {
+        self.gss_keytab = Some(keytab.into());
+        self
+    }
+
+    /// Gets the client keytab path, if one has been configured.
+    pub fn get_gss_keytab(&self) -> Option<&str> {
+        self.gss_keytab.as_deref()
+    }
+    // ---- end Kerberos ------------------------------------------------------
 
     /// Sets the user to authenticate with.
     ///
@@ -712,6 +779,11 @@ impl Config {
                 };
                 self.load_balance_hosts(load_balance_hosts);
             }
+            // `krbsrvname` is a real libpq keyword, so a
+            // connection string carrying it must not be rejected as unknown.
+            "krbsrvname" => {
+                self.krbsrvname(value);
+            }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
                     key.to_string(),
@@ -745,7 +817,12 @@ impl Config {
         S: AsyncRead + AsyncWrite + Unpin,
         T: TlsConnect<S>,
     {
-        connect_raw(stream, tls, true, self).await
+        // `Some("")` rather than a name: `is_some()` keeps the previous
+        // `Some("")` preserves that exactly (`is_some()` is still true, so TLS
+        // behaves identically) while telling the Kerberos path there is no host
+        // name to build an SPN from — which is the truth for an arbitrary stream,
+        // and produces a clear error instead of targeting `postgres/`.
+        connect_raw(stream, tls, Some(""), self).await
     }
 }
 
@@ -797,6 +874,15 @@ impl fmt::Debug for Config {
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
             .field("load_balance_hosts", &self.load_balance_hosts)
+            // gss_password is redacted for the same reason
+            // `password` is — this Debug impl exists to keep secrets out of logs.
+            .field("krbsrvname", &self.krbsrvname)
+            .field("gss_principal", &self.gss_principal)
+            .field(
+                "gss_password",
+                &self.gss_password.as_ref().map(|_| Redaction {}),
+            )
+            .field("gss_keytab", &self.gss_keytab)
             .finish()
     }
 }

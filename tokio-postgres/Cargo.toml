@@ -12,7 +12,10 @@ categories = ["database"]
 rust-version = "1.85"
 
 [lib]
-test = false
+# Flipped from `false` so the `gss` module's own `#[cfg(test)]` tests are compiled
+# and run; `src/row.rs`'s existing ones start running too. Happy to revert this and
+# relocate the tests if you would rather keep the lib test target off.
+test = true
 
 [[bench]]
 name = "bench"
@@ -47,6 +50,12 @@ with-time-0_2 = ["postgres-types/with-time-0_2"]
 with-time-0_3 = ["postgres-types/with-time-0_3"]
 js = ["postgres-protocol/js", "postgres-types/js"]
 
+# Kerberos (GSSAPI on Unix, SSPI on Windows). NOT in `default`: the Unix backend
+# links the system GSS library, which a build machine may not have headers for.
+# With the feature off, `connect_raw` keeps its existing refusal of
+# AuthenticationGSS/AuthenticationSSPI and neither backend is compiled.
+gss = ["dep:libgssapi", "dep:windows-sys"]
+
 [dependencies]
 async-trait = "0.1"
 bytes = "1.11"
@@ -70,6 +79,24 @@ whoami = "2.0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 socket2 = { version = "0.6", features = ["all"] }
+
+# Kerberos backends, both optional and both gated by `gss`.
+#
+# `libgssapi` binds the SYSTEM GSS library (MIT krb5 / Heimdal), so an existing
+# `kinit` ticket cache and the system krb5.conf work with no extra configuration.
+[target.'cfg(unix)'.dependencies]
+libgssapi = { version = "0.11", optional = true, default-features = false }
+
+# SSPI through the OS — `windows-sys` rather than the heavier `windows` crate, and
+# no third-party crypto at all.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", optional = true, features = [
+  "Win32_Foundation",
+  "Win32_Security_Authentication_Identity",
+  "Win32_Security_Credentials",
+  # SEC_WINNT_AUTH_IDENTITY_W lives here, not beside the SSPI functions.
+  "Win32_System_Rpc",
+] }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = [
