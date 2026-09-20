@@ -158,7 +158,7 @@ pub enum Host {
 ///     This option is ignored when connecting with Unix sockets. Defaults to 2 hours.
 /// * `keepalives_interval` - The time interval between TCP keepalive probes.
 ///     This option is ignored when connecting with Unix sockets.
-/// * `keepalives_retries` - The maximum number of TCP keepalive probes that will be sent before dropping a connection.
+/// * `keepalives_retries` or `keepalives_count` - The maximum number of TCP keepalive probes that will be sent before dropping a connection.
 ///     This option is ignored when connecting with Unix sockets.
 /// * `target_session_attrs` - Specifies requirements of the session. If set to `read-write`, the client will check that
 ///     the `transaction_read_write` session parameter is set to `on`. This can be used to connect to the primary server
@@ -668,7 +668,7 @@ impl Config {
                 }
             }
             #[cfg(not(target_arch = "wasm32"))]
-            "keepalives_retries" => {
+            "keepalives_retries" | "keepalives_count" => {
                 let keepalives_retries = value.parse::<u32>().map_err(|_| {
                     Error::config_parse(Box::new(InvalidValue("keepalives_retries")))
                 })?;

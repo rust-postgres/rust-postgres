@@ -61,6 +61,64 @@ fn keepalive_settings() {
 }
 
 #[test]
+fn keepalives_count_keyword_alias() {
+    let config = "keepalives_count=9".parse::<Config>().unwrap();
+    assert_eq!(config.get_keepalives_retries(), Some(9));
+}
+
+#[test]
+fn keepalives_count_url_alias() {
+    let config = "postgresql://localhost?keepalives_count=9"
+        .parse::<Config>()
+        .unwrap();
+    assert_eq!(config.get_keepalives_retries(), Some(9));
+}
+
+#[test]
+fn keepalive_retry_alias_values() {
+    for value in [0, 9, u32::MAX] {
+        for key in ["keepalives_count", "keepalives_retries"] {
+            let config = format!("{key}={value}").parse::<Config>().unwrap();
+            assert_eq!(config.get_keepalives_retries(), Some(value));
+            let config = format!("postgresql://localhost?{key}={value}")
+                .parse::<Config>()
+                .unwrap();
+            assert_eq!(config.get_keepalives_retries(), Some(value));
+        }
+    }
+}
+
+#[test]
+fn keepalive_retry_alias_invalid_values() {
+    for value in ["-1", "4294967296", "invalid", ""] {
+        for input in [
+            format!("keepalives_count='{value}'"),
+            format!("keepalives_retries='{value}'"),
+            format!("postgresql://localhost?keepalives_count={value}"),
+            format!("postgresql://localhost?keepalives_retries={value}"),
+        ] {
+            assert!(input.parse::<Config>().is_err(), "{input}");
+        }
+    }
+}
+
+#[test]
+fn keepalive_retry_alias_last_value_wins() {
+    for (first, second) in [
+        ("keepalives_count", "keepalives_retries"),
+        ("keepalives_retries", "keepalives_count"),
+    ] {
+        let config = format!("{first}=3 {second}=7").parse::<Config>().unwrap();
+        assert_eq!(config.get_keepalives_retries(), Some(7));
+        let config = format!("postgresql://localhost?{first}=3&{second}=7")
+            .parse::<Config>()
+            .unwrap();
+        assert_eq!(config.get_keepalives_retries(), Some(7));
+    }
+    assert_eq!(Config::new().get_keepalives_retries(), None);
+}
+
+#[test]
 fn url() {
     check("postgresql://", &Config::new());
     check(
