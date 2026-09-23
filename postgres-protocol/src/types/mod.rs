@@ -298,9 +298,16 @@ impl<'a> FallibleIterator for HstoreEntries<'a> {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.remaining as usize;
-        (len, Some(len))
+        bounded_size_hint(self.remaining, self.buf, 8)
     }
+}
+
+/// Caps a header's item count at how many items of at least `min_item_len` bytes `buf` can hold.
+#[inline]
+fn bounded_size_hint(remaining: i32, buf: &[u8], min_item_len: usize) -> (usize, Option<usize>) {
+    let len = buf.len() / min_item_len;
+    let len = usize::try_from(remaining).map_or(len, |remaining| remaining.min(len));
+    (len, Some(len))
 }
 
 /// Serializes a `VARBIT` or `BIT` value.
@@ -657,8 +664,7 @@ impl<'a> FallibleIterator for ArrayValues<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.remaining as usize;
-        (len, Some(len))
+        bounded_size_hint(self.remaining, self.buf, 4)
     }
 }
 
@@ -974,8 +980,7 @@ impl FallibleIterator for PathPoints<'_> {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.remaining as usize;
-        (len, Some(len))
+        bounded_size_hint(self.remaining, self.buf, 16)
     }
 }
 
