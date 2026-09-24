@@ -48,7 +48,7 @@ mod uuid_1;
 
 async fn test_type<T, S>(sql_type: &str, checks: &[(T, S)])
 where
-    T: PartialEq + for<'a> FromSqlOwned + ToSql + Sync,
+    T: PartialEq + FromSqlOwned + ToSql + Sync,
     S: fmt::Display,
 {
     let client = connect("user=postgres").await;
