@@ -257,3 +257,28 @@ fn ltxtquery_wrong_version() {
 
     assert!(ltree_from_sql(query.as_slice()).is_err())
 }
+
+#[test]
+fn polygon_verify_round_trip() {
+    let points = [
+        Point { x: 1.0, y: 2.0 },
+        Point { x: 2.0, y: 2.0 },
+        Point { x: 2.0, y: 1.0 },
+    ];
+
+    let mut buf = BytesMut::new();
+
+    assert!(polygon_to_sql(points.iter().map(|p| (p.x(), p.y())), &mut buf).is_ok());
+
+    let decoded = polygon_from_sql(&buf)
+        .unwrap()
+        .points()
+        .map(|p| Ok((p.x, p.y)))
+        .collect::<Vec<_>>()
+        .unwrap();
+
+    assert_eq!(
+        decoded,
+        points.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>()
+    );
+}

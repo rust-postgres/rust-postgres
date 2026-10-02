@@ -893,6 +893,14 @@ where
     I: IntoIterator<Item = (f64, f64)>,
 {
     buf.put_u8(closed as u8);
+    write_points(points, buf)
+}
+
+#[inline]
+fn write_points<I>(points: I, buf: &mut BytesMut) -> Result<(), StdBox<dyn Error + Sync + Send>>
+where
+    I: IntoIterator<Item = (f64, f64)>,
+{
     let points_idx = buf.len();
     buf.put_i32(0);
 
@@ -937,6 +945,43 @@ impl<'a> Path<'a> {
     }
 
     /// Returns an iterator over the points in the path.
+    #[inline]
+    pub fn points(&self) -> Points<'a> {
+        Points {
+            remaining: self.points,
+            buf: self.buf,
+        }
+    }
+}
+
+/// Serializes a Postgres polygon.
+#[inline]
+pub fn polygon_to_sql<I>(
+    points: I,
+    buf: &mut BytesMut,
+) -> Result<(), StdBox<dyn Error + Sync + Send>>
+where
+    I: IntoIterator<Item = (f64, f64)>,
+{
+    write_points(points, buf)
+}
+
+/// Deserializes a Postgres polygon.
+#[inline]
+pub fn polygon_from_sql(mut buf: &[u8]) -> Result<Polygon<'_>, StdBox<dyn Error + Sync + Send>> {
+    let points = buf.read_i32::<BigEndian>()?;
+
+    Ok(Polygon { points, buf })
+}
+
+/// A Postgres polygon.
+pub struct Polygon<'a> {
+    points: i32,
+    buf: &'a [u8],
+}
+
+impl<'a> Polygon<'a> {
+    /// Returns an iterator over the points in the polygon.
     #[inline]
     pub fn points(&self) -> Points<'a> {
         Points {
