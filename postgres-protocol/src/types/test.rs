@@ -297,3 +297,14 @@ fn lseg_verify_round_trip() {
     assert_eq!((decoded_start.x, decoded_start.y), (start.x, start.y));
     assert_eq!((decoded_end.x, decoded_end.y), (end.x, end.y));
 }
+
+#[test]
+fn line_verify_round_trip() {
+    let mut buf = BytesMut::new();
+
+    line_to_sql(1.0, -2.0, 3.0, &mut buf);
+
+    let line = line_from_sql(&buf).unwrap();
+
+    assert_eq!((line.a(), line.b(), line.c()), (1.0, -2.0, 3.0));
+}

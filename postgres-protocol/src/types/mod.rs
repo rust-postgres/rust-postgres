@@ -920,6 +920,54 @@ impl Lseg {
     }
 }
 
+/// Serializes a Postgres line.
+#[inline]
+pub fn line_to_sql(a: f64, b: f64, c: f64, buf: &mut BytesMut) {
+    buf.put_f64(a);
+    buf.put_f64(b);
+    buf.put_f64(c);
+}
+
+/// Deserializes a Postgres line.
+#[inline]
+pub fn line_from_sql(mut buf: &[u8]) -> Result<Line, StdBox<dyn Error + Sync + Send>> {
+    let a = buf.read_f64::<BigEndian>()?;
+    let b = buf.read_f64::<BigEndian>()?;
+    let c = buf.read_f64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(Line { a, b, c })
+}
+
+/// A Postgres line, represented by the equation `Ax + By + C = 0`.
+#[derive(Copy, Clone)]
+pub struct Line {
+    a: f64,
+    b: f64,
+    c: f64,
+}
+
+impl Line {
+    /// Returns the `A` coefficient of the line equation.
+    #[inline]
+    pub fn a(&self) -> f64 {
+        self.a
+    }
+
+    /// Returns the `B` coefficient of the line equation.
+    #[inline]
+    pub fn b(&self) -> f64 {
+        self.b
+    }
+
+    /// Returns the `C` constant of the line equation.
+    #[inline]
+    pub fn c(&self) -> f64 {
+        self.c
+    }
+}
+
 /// Serializes a Postgres path.
 #[inline]
 pub fn path_to_sql<I>(
