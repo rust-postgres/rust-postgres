@@ -308,3 +308,15 @@ fn line_verify_round_trip() {
 
     assert_eq!((line.a(), line.b(), line.c()), (1.0, -2.0, 3.0));
 }
+
+#[test]
+fn circle_verify_round_trip() {
+    let mut buf = BytesMut::new();
+
+    circle_to_sql(1.0, -2.0, 3.0, &mut buf);
+
+    let circle = circle_from_sql(&buf).unwrap();
+    let center = circle.center();
+
+    assert_eq!((center.x, center.y, circle.radius()), (1.0, -2.0, 3.0));
+}

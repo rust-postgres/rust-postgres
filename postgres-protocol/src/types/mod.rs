@@ -968,6 +968,50 @@ impl Line {
     }
 }
 
+/// Serializes a Postgres circle.
+#[inline]
+pub fn circle_to_sql(x: f64, y: f64, radius: f64, buf: &mut BytesMut) {
+    buf.put_f64(x);
+    buf.put_f64(y);
+    buf.put_f64(radius);
+}
+
+/// Deserializes a Postgres circle.
+#[inline]
+pub fn circle_from_sql(mut buf: &[u8]) -> Result<Circle, StdBox<dyn Error + Sync + Send>> {
+    let x = buf.read_f64::<BigEndian>()?;
+    let y = buf.read_f64::<BigEndian>()?;
+    let radius = buf.read_f64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(Circle {
+        center: Point { x, y },
+        radius,
+    })
+}
+
+/// A Postgres circle.
+#[derive(Copy, Clone)]
+pub struct Circle {
+    center: Point,
+    radius: f64,
+}
+
+impl Circle {
+    /// Returns the center of the circle.
+    #[inline]
+    pub fn center(&self) -> Point {
+        self.center
+    }
+
+    /// Returns the radius of the circle.
+    #[inline]
+    pub fn radius(&self) -> f64 {
+        self.radius
+    }
+}
+
 /// Serializes a Postgres path.
 #[inline]
 pub fn path_to_sql<I>(
