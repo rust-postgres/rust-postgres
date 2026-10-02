@@ -282,3 +282,18 @@ fn polygon_verify_round_trip() {
         points.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn lseg_verify_round_trip() {
+    let start = Point { x: 1.0, y: 2.0 };
+    let end = Point { x: 4.0, y: 3.0 };
+
+    let mut buf = BytesMut::new();
+
+    lseg_to_sql(start.x, start.y, end.x, end.y, &mut buf);
+
+    let (decoded_start, decoded_end) = lseg_from_sql(&buf).unwrap().points();
+
+    assert_eq!((decoded_start.x, decoded_start.y), (start.x, start.y));
+    assert_eq!((decoded_end.x, decoded_end.y), (end.x, end.y));
+}

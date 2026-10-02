@@ -882,6 +882,44 @@ impl Box {
     }
 }
 
+/// Serializes a Postgres line segment.
+#[inline]
+pub fn lseg_to_sql(x1: f64, y1: f64, x2: f64, y2: f64, buf: &mut BytesMut) {
+    buf.put_f64(x1);
+    buf.put_f64(y1);
+    buf.put_f64(x2);
+    buf.put_f64(y2);
+}
+
+/// Deserializes a Postgres line segment.
+#[inline]
+pub fn lseg_from_sql(mut buf: &[u8]) -> Result<Lseg, StdBox<dyn Error + Sync + Send>> {
+    let x1 = buf.read_f64::<BigEndian>()?;
+    let y1 = buf.read_f64::<BigEndian>()?;
+    let x2 = buf.read_f64::<BigEndian>()?;
+    let y2 = buf.read_f64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(Lseg {
+        points: (Point { x: x1, y: y1 }, Point { x: x2, y: y2 }),
+    })
+}
+
+/// A Postgres line segment.
+#[derive(Copy, Clone)]
+pub struct Lseg {
+    points: (Point, Point),
+}
+
+impl Lseg {
+    /// Returns the two endpoints of the line segment.
+    #[inline]
+    pub fn points(&self) -> (Point, Point) {
+        self.points
+    }
+}
+
 /// Serializes a Postgres path.
 #[inline]
 pub fn path_to_sql<I>(
