@@ -922,7 +922,7 @@ pub fn path_from_sql(mut buf: &[u8]) -> Result<Path<'_>, StdBox<dyn Error + Sync
     })
 }
 
-/// A Postgres point.
+/// A Postgres path.
 pub struct Path<'a> {
     closed: bool,
     points: i32,
@@ -938,8 +938,8 @@ impl<'a> Path<'a> {
 
     /// Returns an iterator over the points in the path.
     #[inline]
-    pub fn points(&self) -> PathPoints<'a> {
-        PathPoints {
+    pub fn points(&self) -> Points<'a> {
+        Points {
             remaining: self.points,
             buf: self.buf,
         }
@@ -947,12 +947,16 @@ impl<'a> Path<'a> {
 }
 
 /// An iterator over the points of a Postgres path.
-pub struct PathPoints<'a> {
+#[deprecated(note = "renamed to `Points`")]
+pub type PathPoints<'a> = Points<'a>;
+
+/// An iterator over a sequence of Postgres points.
+pub struct Points<'a> {
     remaining: i32,
     buf: &'a [u8],
 }
 
-impl FallibleIterator for PathPoints<'_> {
+impl FallibleIterator for Points<'_> {
     type Item = Point;
     type Error = StdBox<dyn Error + Sync + Send>;
 
@@ -960,7 +964,7 @@ impl FallibleIterator for PathPoints<'_> {
     fn next(&mut self) -> Result<Option<Point>, StdBox<dyn Error + Sync + Send>> {
         if self.remaining == 0 {
             if !self.buf.is_empty() {
-                return Err("invalid message length: path points not drained".into());
+                return Err("invalid message length: points not drained".into());
             }
             return Ok(None);
         }
