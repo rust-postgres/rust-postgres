@@ -136,7 +136,7 @@ pub use crate::generic_client::GenericClient;
 pub use crate::portal::Portal;
 pub use crate::query::RowStream;
 pub use crate::row::{Row, SimpleQueryRow};
-pub use crate::simple_query::{SimpleColumn, SimpleQueryStream};
+pub use crate::simple_query::{SimpleColumn, SimpleCommandTag, SimpleQueryStream};
 #[cfg(feature = "runtime")]
 pub use crate::socket::Socket;
 pub use crate::statement::{Column, Statement};
@@ -258,6 +258,16 @@ pub enum SimpleQueryMessage {
     CommandComplete(u64),
     /// Column values of the proceeding row values
     RowDescription(Arc<[SimpleColumn]>),
+    /// A statement in the query has completed, with its command tag.
+    ///
+    /// Only emitted in place of `CommandComplete` by a stream opted in with
+    /// [`SimpleQueryStream::with_command_tags`].
+    CommandTag(SimpleCommandTag),
+    /// A statement in the query was empty.
+    ///
+    /// Only emitted in place of `CommandComplete(0)` by a stream opted in with
+    /// [`SimpleQueryStream::with_command_tags`].
+    EmptyQuery,
 }
 
 fn slice_iter<'a>(
