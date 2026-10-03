@@ -672,6 +672,9 @@ impl Client {
     /// rows, this method returns a list of an enum which indicates either the completion of one of the commands,
     /// or a row of data. This preserves the framing between the separate statements in the request.
     ///
+    /// To receive each statement's full command tag, empty statements and column types, call
+    /// [`SimpleQueryStream::with_command_tags`] on the returned stream.
+    ///
     /// # Warning
     ///
     /// Prepared statements should be use for any query which contains user-specified data, as they provided the

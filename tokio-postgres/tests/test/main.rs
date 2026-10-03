@@ -389,6 +389,86 @@ async fn simple_query() {
 }
 
 #[tokio::test]
+async fn simple_query_command_tags() {
+    let client = connect("user=postgres").await;
+
+    let messages = client
+        .simple_query_raw(
+            "CREATE TEMPORARY TABLE foo (id INT4, name TEXT, v VARCHAR(10));
+            INSERT INTO foo VALUES (1, 'steven', 'a'), (2, 'joe', 'b');
+            SELECT * FROM foo;
+            BEGIN;
+            COMMIT;",
+        )
+        .await
+        .unwrap()
+        .with_command_tags()
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
+
+    let tags = messages
+        .iter()
+        .filter_map(|m| match m {
+            SimpleQueryMessage::CommandTag(tag) => Some((tag.tag(), tag.rows())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        tags,
+        [
+            ("CREATE TABLE", 0),
+            ("INSERT 0 2", 2),
+            ("SELECT 2", 2),
+            ("BEGIN", 0),
+            ("COMMIT", 0),
+        ]
+    );
+    assert!(
+        !messages
+            .iter()
+            .any(|m| matches!(m, SimpleQueryMessage::CommandComplete(_)))
+    );
+
+    let columns = messages
+        .iter()
+        .find_map(|m| match m {
+            SimpleQueryMessage::RowDescription(columns) => Some(columns),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(columns[0].type_oid(), Type::INT4.oid());
+    assert_eq!(columns[1].type_oid(), Type::TEXT.oid());
+    assert_eq!(columns[0].type_modifier(), -1);
+    assert_eq!(columns[2].type_oid(), Type::VARCHAR.oid());
+    assert_eq!(columns[2].type_modifier(), 14);
+}
+
+#[tokio::test]
+async fn simple_query_empty_query() {
+    let client = connect("user=postgres").await;
+
+    for query in [";", "-- comment"] {
+        let messages = client
+            .simple_query_raw(query)
+            .await
+            .unwrap()
+            .with_command_tags()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert!(matches!(messages[..], [SimpleQueryMessage::EmptyQuery]));
+
+        // The default stream keeps reporting an empty query as `CommandComplete(0)`.
+        let messages = client.simple_query(query).await.unwrap();
+        assert!(matches!(
+            messages[..],
+            [SimpleQueryMessage::CommandComplete(0)]
+        ));
+    }
+}
+
+#[tokio::test]
 async fn cancel_query_raw() {
     let client = connect("user=postgres").await;
 
