@@ -100,6 +100,8 @@ pub enum Host {
     Unix(PathBuf),
 }
 
+const DEFAULT_BUFFER_SIZE: usize = 8 * 1024;
+
 /// Connection configuration.
 ///
 /// Configuration can be parsed from libpq-style connection strings. These strings come in two formats:
@@ -149,6 +151,7 @@ pub enum Host {
 ///     omitted or the empty string.
 /// * `connect_timeout` - The time limit in seconds applied to each socket-level connection attempt. Note that hostnames
 ///     can resolve to multiple IP addresses, and this limit is applied to each address. Defaults to no timeout.
+/// * `buffer_size` - The initial capacity, in bytes, of the connection's buffers. Defaults to 8192.
 /// * `tcp_user_timeout` - The time limit that transmitted data may remain unacknowledged before a connection is forcibly closed.
 ///     This is ignored for Unix domain socket connections. It is only supported on systems where TCP_USER_TIMEOUT is available
 ///     and will default to the system default if omitted or set to 0; on other systems, it has no effect.
@@ -228,6 +231,7 @@ pub struct Config {
     pub(crate) hostaddr: Vec<IpAddr>,
     pub(crate) port: Vec<u16>,
     pub(crate) connect_timeout: Option<Duration>,
+    pub(crate) buffer_size: usize,
     pub(crate) tcp_user_timeout: Option<Duration>,
     pub(crate) keepalives: bool,
     #[cfg(not(target_arch = "wasm32"))]
@@ -258,6 +262,7 @@ impl Config {
             hostaddr: vec![],
             port: vec![],
             connect_timeout: None,
+            buffer_size: DEFAULT_BUFFER_SIZE,
             tcp_user_timeout: None,
             keepalives: true,
             #[cfg(not(target_arch = "wasm32"))]
@@ -443,6 +448,19 @@ impl Config {
     /// `connect_timeout` method.
     pub fn get_connect_timeout(&self) -> Option<&Duration> {
         self.connect_timeout.as_ref()
+    }
+
+    /// Sets the initial capacity of the connection's buffers.
+    ///
+    /// Defaults to 8192 bytes.
+    pub fn buffer_size(&mut self, buffer_size: usize) -> &mut Config {
+        self.buffer_size = buffer_size;
+        self
+    }
+
+    /// Gets the configured initial buffer capacity.
+    pub fn get_buffer_size(&self) -> usize {
+        self.buffer_size
     }
 
     /// Sets the TCP user timeout.
@@ -634,6 +652,12 @@ impl Config {
                     self.connect_timeout(Duration::from_secs(timeout as u64));
                 }
             }
+            "buffer_size" => {
+                let buffer_size = value
+                    .parse::<usize>()
+                    .map_err(|_| Error::config_parse(Box::new(InvalidValue("buffer_size"))))?;
+                self.buffer_size(buffer_size);
+            }
             "tcp_user_timeout" => {
                 let timeout = value
                     .parse::<i64>()
@@ -735,7 +759,8 @@ impl Config {
 
     /// Connects to a PostgreSQL database over an arbitrary stream.
     ///
-    /// All of the settings other than `user`, `password`, `dbname`, `options`, and `application_name` name are ignored.
+    /// All of the settings other than `user`, `password`, `dbname`, `options`, `application_name`, and
+    /// `buffer_size` are ignored.
     pub async fn connect_raw<S, T>(
         &self,
         stream: S,
@@ -782,6 +807,7 @@ impl fmt::Debug for Config {
             .field("hostaddr", &self.hostaddr)
             .field("port", &self.port)
             .field("connect_timeout", &self.connect_timeout)
+            .field("buffer_size", &self.buffer_size)
             .field("tcp_user_timeout", &self.tcp_user_timeout)
             .field("keepalives", &self.keepalives);
 
@@ -1201,5 +1227,22 @@ mod tests {
     fn test_invalid_hostaddr_parsing() {
         let s = "user=pass_user dbname=postgres host=host1 hostaddr=127.0.0 port=26257";
         s.parse::<Config>().err().unwrap();
+    }
+
+    #[test]
+    fn test_buffer_size_parsing() {
+        let config = Config::new();
+        assert_eq!(8192, config.get_buffer_size());
+
+        let config = "buffer_size=16384".parse::<Config>().unwrap();
+        assert_eq!(16384, config.get_buffer_size());
+
+        let config = "postgresql://localhost?buffer_size=32768"
+            .parse::<Config>()
+            .unwrap();
+        assert_eq!(32768, config.get_buffer_size());
+
+        let config = "buffer_size=0".parse::<Config>().unwrap();
+        assert_eq!(0, config.get_buffer_size());
     }
 }

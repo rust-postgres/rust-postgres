@@ -277,7 +277,6 @@ where
         if self.state != State::Closing {
             return Poll::Pending;
         }
-
         match Pin::new(&mut self.stream)
             .poll_close(cx)
             .map_err(Error::io)?
@@ -298,6 +297,38 @@ where
         self.parameters.get(name).map(|s| &**s)
     }
 
+    /// Reclaim the `Framed` read/write buffers back down to the codec's
+    /// configured bound once the connection has gone fully idle.
+    ///
+    /// `Framed` grows its buffers to fit the largest message seen and never
+    /// shrinks them, so one large result set or bulk write would pin that
+    /// capacity for a pooled connection's whole lifetime. Only empty buffers
+    /// grown past the bound are reclaimed, so no in-flight bytes are dropped
+    /// and an already-bounded buffer won't churn allocations on the hot path.
+    fn reclaim_idle_buffers(&mut self) {
+        // Only when all in-flight work has drained, i.e. the connection is
+        // parked waiting for the next request (its state in the pool).
+        if self.state != State::Active
+            || !self.responses.is_empty()
+            || !self.pending_responses.is_empty()
+            || self.pending_request.is_some()
+        {
+            return;
+        }
+
+        let bound = self.stream.codec().max_buffer_size();
+
+        let read_buf = self.stream.read_buffer_mut();
+        if read_buf.is_empty() && read_buf.capacity() > bound {
+            *read_buf = BytesMut::with_capacity(bound);
+        }
+
+        let write_buf = self.stream.write_buffer_mut();
+        if write_buf.is_empty() && write_buf.capacity() > bound {
+            *write_buf = BytesMut::with_capacity(bound);
+        }
+    }
+
     fn poll_message_inner(
         &mut self,
         cx: &mut Context<'_>,
@@ -309,11 +340,17 @@ where
         }
         match message {
             Some(message) => Poll::Ready(Some(Ok(message))),
-            None => match self.poll_shutdown(cx) {
-                Poll::Ready(Ok(())) => Poll::Ready(None),
-                Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
-                Poll::Pending => Poll::Pending,
-            },
+            None => {
+                // No synchronous message this round. If the connection has gone
+                // fully idle, reclaim any oversized `Framed` buffers before it
+                // parks back in the pool.
+                self.reclaim_idle_buffers();
+                match self.poll_shutdown(cx) {
+                    Poll::Ready(Ok(())) => Poll::Ready(None),
+                    Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
+                    Poll::Pending => Poll::Pending,
+                }
+            }
         }
     }
 
@@ -352,5 +389,74 @@ where
             }
         }
         Poll::Ready(Ok(()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::codec::PostgresCodec;
+    use tokio::io::DuplexStream;
+    use tokio_util::codec::Framed;
+
+    /// Number of bytes the test buffers are grown to before reclaim — well past
+    /// the configured bound so the reclaim path is exercised.
+    const GROWN: usize = 1024 * 1024;
+    /// Reclaim bound used by the test codec.
+    const BOUND: usize = 256;
+
+    type TestConnection = Connection<DuplexStream, DuplexStream>;
+
+    /// Build an idle `Connection` backed by an in-memory duplex stream whose
+    /// `Framed` read/write buffers have been grown past `BOUND`.
+    fn idle_connection() -> TestConnection {
+        let (client_side, _server_side) = tokio::io::duplex(64);
+        let framed = Framed::new(MaybeTlsStream::Raw(client_side), PostgresCodec::new(BOUND));
+        let (_sender, receiver) = mpsc::unbounded();
+        let mut conn = Connection::new(framed, VecDeque::new(), HashMap::new(), receiver);
+        conn.stream.read_buffer_mut().reserve(GROWN);
+        conn.stream.write_buffer_mut().reserve(GROWN);
+        conn
+    }
+
+    /// An idle connection with empty-but-oversized buffers reclaims both back
+    /// down to the configured bound.
+    #[test]
+    fn reclaims_oversized_buffers_when_idle() {
+        let mut conn = idle_connection();
+        assert!(conn.stream.read_buffer().capacity() >= GROWN);
+        assert!(conn.stream.write_buffer().capacity() >= GROWN);
+
+        conn.reclaim_idle_buffers();
+
+        assert!(conn.stream.read_buffer().capacity() <= BOUND);
+        assert!(conn.stream.write_buffer().capacity() <= BOUND);
+    }
+
+    /// A non-empty read buffer (a partial frame is still buffered) must not be
+    /// reclaimed, otherwise the pending bytes would be lost.
+    #[test]
+    fn keeps_nonempty_read_buffer() {
+        let mut conn = idle_connection();
+        conn.stream.read_buffer_mut().extend_from_slice(b"partial");
+
+        conn.reclaim_idle_buffers();
+
+        assert!(conn.stream.read_buffer().capacity() >= GROWN);
+    }
+
+    /// A connection that still has in-flight work (a pending request) is not
+    /// idle and must keep its buffers untouched.
+    #[test]
+    fn skips_reclaim_when_request_pending() {
+        let mut conn = idle_connection();
+        conn.pending_request = Some(RequestMessages::Single(FrontendMessage::Raw(
+            bytes::Bytes::new(),
+        )));
+
+        conn.reclaim_idle_buffers();
+
+        assert!(conn.stream.read_buffer().capacity() >= GROWN);
+        assert!(conn.stream.write_buffer().capacity() >= GROWN);
     }
 }
