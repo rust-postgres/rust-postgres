@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+### Added
+
+* Added `Client::bind_execute_many` method.
+
 ## v0.7.18 - 2026-06-12
 
 ### Fixed

@@ -18,6 +18,10 @@ test = false
 name = "bench"
 harness = false
 
+[[bench]]
+name = "bind_execute_many"
+harness = false
+
 [package.metadata.docs.rs]
 all-features = true
 

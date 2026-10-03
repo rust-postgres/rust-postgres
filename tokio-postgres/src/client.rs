@@ -623,6 +623,81 @@ impl Client {
         query::execute(self.inner(), statement, params).await
     }
 
+    /// Executes a prepared statement against many parameter-sets using pipelined Bind/Execute frames.
+    ///
+    /// This method is the high-throughput alternative to calling [`execute`] in a loop. Rather than
+    /// issuing a separate `Sync` per parameter-set (which costs one round-trip each), it packs
+    /// multiple Bind/Execute frame pairs into a shared buffer and sends them all at once, appending a
+    /// single `Sync` per send-batch. The server processes every pair under that Sync and returns
+    /// `BindComplete` + `CommandComplete` messages before the final `ReadyForQuery`.
+    ///
+    /// # Sync semantics
+    ///
+    /// One `Sync` is emitted per send-batch (approximately every 128 KiB of accumulated wire data).
+    /// Large iterators therefore trigger multiple round-trips, each bounded in memory, so resident
+    /// memory stays small regardless of iterator length.
+    ///
+    /// # Error mid-batch
+    ///
+    /// If the server rejects a row (e.g. a constraint violation), it returns an `ErrorResponse` and
+    /// discards the remaining Bind/Execute messages in that batch up to the `Sync`. The returned
+    /// `Error` carries the server's error detail. Rows from earlier batches in the *same call* that
+    /// were already committed (outside an explicit transaction) are **not** rolled back. Use an
+    /// explicit `BEGIN` / `COMMIT` transaction if you need atomicity across the full set.
+    ///
+    /// # Parameter arity
+    ///
+    /// Every parameter-set must contain exactly `statement.params().len()` values. A mismatch
+    /// returns an `Err` for that parameter-set. Batches already flushed to the server before the
+    /// mismatch was detected will have already executed; use an explicit transaction if you need
+    /// all-or-nothing semantics.
+    ///
+    /// # Returns
+    ///
+    /// The sum of row-affected counts reported by `CommandComplete` across all parameter-sets.
+    ///
+    /// [`execute`]: #method.execute
+    pub async fn bind_execute_many<P, I, J>(
+        &self,
+        statement: &Statement,
+        params_sets: I,
+    ) -> Result<u64, Error>
+    where
+        I: IntoIterator<Item = J>,
+        J: IntoIterator<Item = P>,
+        J::IntoIter: ExactSizeIterator,
+        P: BorrowToSql,
+    {
+        query::bind_execute_many(self.inner(), statement, params_sets).await
+    }
+
+    /// Like [`bind_execute_many`] but with an explicit flush threshold in bytes.
+    ///
+    /// Exposed for benchmarking different buffer sizes. Not part of the stable API.
+    ///
+    /// [`bind_execute_many`]: #method.bind_execute_many
+    #[doc(hidden)]
+    pub async fn bind_execute_many_with_flush_threshold<P, I, J>(
+        &self,
+        statement: &Statement,
+        params_sets: I,
+        flush_threshold: usize,
+    ) -> Result<u64, Error>
+    where
+        I: IntoIterator<Item = J>,
+        J: IntoIterator<Item = P>,
+        J::IntoIter: ExactSizeIterator,
+        P: BorrowToSql,
+    {
+        query::bind_execute_many_with_flush_threshold(
+            self.inner(),
+            statement,
+            params_sets,
+            flush_threshold,
+        )
+        .await
+    }
+
     /// Executes a `COPY FROM STDIN` statement, returning a sink used to write the copy data.
     ///
     /// PostgreSQL does not support parameters in `COPY` statements, so this method does not take any. The copy *must*
