@@ -257,3 +257,66 @@ fn ltxtquery_wrong_version() {
 
     assert!(ltree_from_sql(query.as_slice()).is_err())
 }
+
+#[test]
+fn polygon_verify_round_trip() {
+    let points = [
+        Point { x: 1.0, y: 2.0 },
+        Point { x: 2.0, y: 2.0 },
+        Point { x: 2.0, y: 1.0 },
+    ];
+
+    let mut buf = BytesMut::new();
+
+    assert!(polygon_to_sql(points.iter().map(|p| (p.x(), p.y())), &mut buf).is_ok());
+
+    let decoded = polygon_from_sql(&buf)
+        .unwrap()
+        .points()
+        .map(|p| Ok((p.x, p.y)))
+        .collect::<Vec<_>>()
+        .unwrap();
+
+    assert_eq!(
+        decoded,
+        points.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn lseg_verify_round_trip() {
+    let start = Point { x: 1.0, y: 2.0 };
+    let end = Point { x: 4.0, y: 3.0 };
+
+    let mut buf = BytesMut::new();
+
+    lseg_to_sql(start.x, start.y, end.x, end.y, &mut buf);
+
+    let (decoded_start, decoded_end) = lseg_from_sql(&buf).unwrap().points();
+
+    assert_eq!((decoded_start.x, decoded_start.y), (start.x, start.y));
+    assert_eq!((decoded_end.x, decoded_end.y), (end.x, end.y));
+}
+
+#[test]
+fn line_verify_round_trip() {
+    let mut buf = BytesMut::new();
+
+    line_to_sql(1.0, -2.0, 3.0, &mut buf);
+
+    let line = line_from_sql(&buf).unwrap();
+
+    assert_eq!((line.a(), line.b(), line.c()), (1.0, -2.0, 3.0));
+}
+
+#[test]
+fn circle_verify_round_trip() {
+    let mut buf = BytesMut::new();
+
+    circle_to_sql(1.0, -2.0, 3.0, &mut buf);
+
+    let circle = circle_from_sql(&buf).unwrap();
+    let center = circle.center();
+
+    assert_eq!((center.x, center.y, circle.radius()), (1.0, -2.0, 3.0));
+}

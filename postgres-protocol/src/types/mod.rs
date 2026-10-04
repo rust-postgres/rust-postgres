@@ -882,6 +882,136 @@ impl Box {
     }
 }
 
+/// Serializes a Postgres line segment.
+#[inline]
+pub fn lseg_to_sql(x1: f64, y1: f64, x2: f64, y2: f64, buf: &mut BytesMut) {
+    buf.put_f64(x1);
+    buf.put_f64(y1);
+    buf.put_f64(x2);
+    buf.put_f64(y2);
+}
+
+/// Deserializes a Postgres line segment.
+#[inline]
+pub fn lseg_from_sql(mut buf: &[u8]) -> Result<Lseg, StdBox<dyn Error + Sync + Send>> {
+    let x1 = buf.read_f64::<BigEndian>()?;
+    let y1 = buf.read_f64::<BigEndian>()?;
+    let x2 = buf.read_f64::<BigEndian>()?;
+    let y2 = buf.read_f64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(Lseg {
+        points: (Point { x: x1, y: y1 }, Point { x: x2, y: y2 }),
+    })
+}
+
+/// A Postgres line segment.
+#[derive(Copy, Clone)]
+pub struct Lseg {
+    points: (Point, Point),
+}
+
+impl Lseg {
+    /// Returns the two endpoints of the line segment.
+    #[inline]
+    pub fn points(&self) -> (Point, Point) {
+        self.points
+    }
+}
+
+/// Serializes a Postgres line.
+#[inline]
+pub fn line_to_sql(a: f64, b: f64, c: f64, buf: &mut BytesMut) {
+    buf.put_f64(a);
+    buf.put_f64(b);
+    buf.put_f64(c);
+}
+
+/// Deserializes a Postgres line.
+#[inline]
+pub fn line_from_sql(mut buf: &[u8]) -> Result<Line, StdBox<dyn Error + Sync + Send>> {
+    let a = buf.read_f64::<BigEndian>()?;
+    let b = buf.read_f64::<BigEndian>()?;
+    let c = buf.read_f64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(Line { a, b, c })
+}
+
+/// A Postgres line, represented by the equation `Ax + By + C = 0`.
+#[derive(Copy, Clone)]
+pub struct Line {
+    a: f64,
+    b: f64,
+    c: f64,
+}
+
+impl Line {
+    /// Returns the `A` coefficient of the line equation.
+    #[inline]
+    pub fn a(&self) -> f64 {
+        self.a
+    }
+
+    /// Returns the `B` coefficient of the line equation.
+    #[inline]
+    pub fn b(&self) -> f64 {
+        self.b
+    }
+
+    /// Returns the `C` constant of the line equation.
+    #[inline]
+    pub fn c(&self) -> f64 {
+        self.c
+    }
+}
+
+/// Serializes a Postgres circle.
+#[inline]
+pub fn circle_to_sql(x: f64, y: f64, radius: f64, buf: &mut BytesMut) {
+    buf.put_f64(x);
+    buf.put_f64(y);
+    buf.put_f64(radius);
+}
+
+/// Deserializes a Postgres circle.
+#[inline]
+pub fn circle_from_sql(mut buf: &[u8]) -> Result<Circle, StdBox<dyn Error + Sync + Send>> {
+    let x = buf.read_f64::<BigEndian>()?;
+    let y = buf.read_f64::<BigEndian>()?;
+    let radius = buf.read_f64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(Circle {
+        center: Point { x, y },
+        radius,
+    })
+}
+
+/// A Postgres circle.
+#[derive(Copy, Clone)]
+pub struct Circle {
+    center: Point,
+    radius: f64,
+}
+
+impl Circle {
+    /// Returns the center of the circle.
+    #[inline]
+    pub fn center(&self) -> Point {
+        self.center
+    }
+
+    /// Returns the radius of the circle.
+    #[inline]
+    pub fn radius(&self) -> f64 {
+        self.radius
+    }
+}
+
 /// Serializes a Postgres path.
 #[inline]
 pub fn path_to_sql<I>(
@@ -893,6 +1023,14 @@ where
     I: IntoIterator<Item = (f64, f64)>,
 {
     buf.put_u8(closed as u8);
+    write_points(points, buf)
+}
+
+#[inline]
+fn write_points<I>(points: I, buf: &mut BytesMut) -> Result<(), StdBox<dyn Error + Sync + Send>>
+where
+    I: IntoIterator<Item = (f64, f64)>,
+{
     let points_idx = buf.len();
     buf.put_i32(0);
 
@@ -922,7 +1060,7 @@ pub fn path_from_sql(mut buf: &[u8]) -> Result<Path<'_>, StdBox<dyn Error + Sync
     })
 }
 
-/// A Postgres point.
+/// A Postgres path.
 pub struct Path<'a> {
     closed: bool,
     points: i32,
@@ -938,8 +1076,45 @@ impl<'a> Path<'a> {
 
     /// Returns an iterator over the points in the path.
     #[inline]
-    pub fn points(&self) -> PathPoints<'a> {
-        PathPoints {
+    pub fn points(&self) -> Points<'a> {
+        Points {
+            remaining: self.points,
+            buf: self.buf,
+        }
+    }
+}
+
+/// Serializes a Postgres polygon.
+#[inline]
+pub fn polygon_to_sql<I>(
+    points: I,
+    buf: &mut BytesMut,
+) -> Result<(), StdBox<dyn Error + Sync + Send>>
+where
+    I: IntoIterator<Item = (f64, f64)>,
+{
+    write_points(points, buf)
+}
+
+/// Deserializes a Postgres polygon.
+#[inline]
+pub fn polygon_from_sql(mut buf: &[u8]) -> Result<Polygon<'_>, StdBox<dyn Error + Sync + Send>> {
+    let points = buf.read_i32::<BigEndian>()?;
+
+    Ok(Polygon { points, buf })
+}
+
+/// A Postgres polygon.
+pub struct Polygon<'a> {
+    points: i32,
+    buf: &'a [u8],
+}
+
+impl<'a> Polygon<'a> {
+    /// Returns an iterator over the points in the polygon.
+    #[inline]
+    pub fn points(&self) -> Points<'a> {
+        Points {
             remaining: self.points,
             buf: self.buf,
         }
@@ -947,12 +1122,16 @@ impl<'a> Path<'a> {
 }
 
 /// An iterator over the points of a Postgres path.
-pub struct PathPoints<'a> {
+#[deprecated(note = "renamed to `Points`")]
+pub type PathPoints<'a> = Points<'a>;
+
+/// An iterator over a sequence of Postgres points.
+pub struct Points<'a> {
     remaining: i32,
     buf: &'a [u8],
 }
 
-impl FallibleIterator for PathPoints<'_> {
+impl FallibleIterator for Points<'_> {
     type Item = Point;
     type Error = StdBox<dyn Error + Sync + Send>;
 
@@ -960,7 +1139,7 @@ impl FallibleIterator for PathPoints<'_> {
     fn next(&mut self) -> Result<Option<Point>, StdBox<dyn Error + Sync + Send>> {
         if self.remaining == 0 {
             if !self.buf.is_empty() {
-                return Err("invalid message length: path points not drained".into());
+                return Err("invalid message length: points not drained".into());
             }
             return Ok(None);
         }
