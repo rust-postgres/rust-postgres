@@ -159,8 +159,8 @@ where
     let tls = tls
         .make_tls_connect(hostname.unwrap_or(""))
         .map_err(|e| Error::tls(e.into()))?;
-    let has_hostname = hostname.is_some();
-    let (mut client, mut connection) = connect_raw(socket, tls, has_hostname, config).await?;
+
+    let (mut client, mut connection) = connect_raw(socket, tls, hostname, config).await?;
 
     if config.target_session_attrs != TargetSessionAttrs::Any {
         let mut rows = pin!(client.simple_query_raw("SHOW transaction_read_only"));

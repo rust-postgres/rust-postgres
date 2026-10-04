@@ -124,6 +124,16 @@
 //! | `with-time-0_3` | Enable support for the 0.3 version of the `time` crate. | [time](https://crates.io/crates/time/0.3.0) 0.3 | no |
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
+/// Whether Kerberos (GSSAPI/SSPI) authentication is compiled into this build.
+///
+/// The authoritative answer, not a restatement of it. The app cannot ask
+/// `cfg!(feature = "postgres-kerberos")` and get the truth, because on Windows
+/// the `gss` feature is turned on through a target-scoped dependency rather than
+/// through that app feature — so the app's own cfg would read `false` on the one
+/// platform where Kerberos is enabled by default. Reading this const instead is
+/// what keeps `supports_kerberos_auth` true exactly where the code exists.
+pub const GSS_SUPPORTED: bool = cfg!(feature = "gss");
+
 pub use crate::cancel_token::CancelToken;
 pub use crate::client::Client;
 pub use crate::config::Config;
@@ -168,6 +178,9 @@ mod connect_tls;
 mod connection;
 mod copy_in;
 mod copy_out;
+// Kerberos (GSSAPI/SSPI) authentication.
+#[cfg(feature = "gss")]
+mod gss;
 pub mod error;
 mod generic_client;
 #[cfg(not(target_arch = "wasm32"))]
