@@ -61,6 +61,27 @@ pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Erro
     }
 }
 
+pub async fn execute_commit(client: &InnerClient) -> Result<(), Error> {
+    debug!("executing transaction commit");
+
+    let buf = encode(client, "COMMIT")?;
+    let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
+
+    loop {
+        match responses.next().await? {
+            Message::CommandComplete(body) => {
+                return match body.tag().map_err(Error::parse)? {
+                    "COMMIT" => Ok(()),
+                    "ROLLBACK" => Err(Error::commit_rolled_back()),
+                    _ => Err(Error::unexpected_message()),
+                };
+            }
+            Message::EmptyQueryResponse | Message::RowDescription(_) | Message::DataRow(_) => {}
+            _ => return Err(Error::unexpected_message()),
+        }
+    }
+}
+
 fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
     client.with_buf(|buf| {
         frontend::query(query, buf).map_err(Error::encode)?;

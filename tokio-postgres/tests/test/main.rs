@@ -80,6 +80,28 @@ async fn in_transaction(client: &Client) -> bool {
     current_transaction_id(client).await == current_transaction_id(client).await
 }
 
+/// Returns SQL for a helper function that succeeds for the first row and then
+/// raises a deferred error for later rows.
+///
+/// This lets a query yield one row before the backend reports an error, which
+/// is the shape needed to reproduce dropped-stream transaction issues.
+fn late_fail_function_sql() -> &'static str {
+    "
+    CREATE OR REPLACE FUNCTION pg_temp.late_fail(i BIGINT)
+    RETURNS BOOLEAN
+    LANGUAGE plpgsql
+    VOLATILE
+    AS $$
+    BEGIN
+        IF i = 1 THEN
+            RETURN TRUE;
+        END IF;
+        RAISE EXCEPTION 'late_fail boom on row %', i USING ERRCODE = '22012';
+    END;
+    $$;
+    "
+}
+
 #[tokio::test]
 async fn plain_password_missing() {
     connect_raw("user=pass_user dbname=postgres")
@@ -1290,6 +1312,95 @@ async fn query_typed_with_transaction() {
         .await
         .unwrap();
     assert_eq!(updated_rows.len(), 0);
+}
+
+#[tokio::test]
+async fn dropped_row_stream_error_causes_commit_to_fail() {
+    let mut client = connect("user=postgres").await;
+    let setup_sql = format!(
+        "
+            CREATE TEMPORARY TABLE foo (
+                id BIGINT PRIMARY KEY,
+                note TEXT NOT NULL
+            );
+            {}
+        ",
+        late_fail_function_sql()
+    );
+
+    client.batch_execute(&setup_sql).await.unwrap();
+
+    let transaction = client.transaction().await.unwrap();
+    transaction
+        .execute(
+            "INSERT INTO foo (id, note) VALUES ($1, $2), ($3, $4)",
+            &[&1_i64, &"first-row", &2_i64, &"second-row"],
+        )
+        .await
+        .unwrap();
+
+    let stream = transaction
+        .query_typed_raw(
+            "SELECT pg_temp.late_fail(x) FROM generate_series(1, 2) AS t(x)",
+            std::iter::empty::<(&str, Type)>(),
+        )
+        .await
+        .unwrap();
+    let mut stream = pin!(stream);
+    let first = stream.try_next().await.unwrap();
+    assert!(first.is_some());
+
+    transaction.commit().await.expect_err("commit should fail");
+
+    let rows = client
+        .query("SELECT id, note FROM foo ORDER BY id", &[])
+        .await
+        .unwrap();
+    assert!(rows.is_empty());
+}
+
+#[tokio::test]
+async fn dropped_row_stream_error_causes_savepoint_release_to_fail() {
+    let mut client = connect("user=postgres").await;
+    let setup_sql = format!(
+        "
+            CREATE TEMPORARY TABLE foo (
+                id BIGINT PRIMARY KEY,
+                note TEXT NOT NULL
+            );
+            {}
+        ",
+        late_fail_function_sql()
+    );
+
+    client.batch_execute(&setup_sql).await.unwrap();
+
+    let mut transaction = client.transaction().await.unwrap();
+    let savepoint = transaction.transaction().await.unwrap();
+    savepoint
+        .execute(
+            "INSERT INTO foo (id, note) VALUES ($1, $2), ($3, $4)",
+            &[&1_i64, &"first-row", &2_i64, &"second-row"],
+        )
+        .await
+        .unwrap();
+
+    let stream = savepoint
+        .query_typed_raw(
+            "SELECT pg_temp.late_fail(x) FROM generate_series(1, 2) AS t(x)",
+            std::iter::empty::<(&str, Type)>(),
+        )
+        .await
+        .unwrap();
+    let mut stream = pin!(stream);
+    let first = stream.try_next().await.unwrap();
+    assert!(first.is_some());
+
+    savepoint
+        .commit()
+        .await
+        .expect_err("savepoint release should fail");
+    transaction.rollback().await.unwrap();
 }
 
 #[tokio::test]

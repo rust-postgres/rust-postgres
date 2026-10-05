@@ -695,6 +695,12 @@ impl Client {
         simple_query::batch_execute(self.inner(), query).await
     }
 
+    /// Executes `COMMIT`, treating PostgreSQL completing it as `ROLLBACK` as an
+    /// error.
+    pub(crate) async fn execute_commit(&self) -> Result<(), Error> {
+        simple_query::execute_commit(self.inner()).await
+    }
+
     /// Check that the connection is alive and wait for the confirmation.
     pub async fn check_connection(&self) -> Result<(), Error> {
         // sync is a very quick message to test the connection health.
