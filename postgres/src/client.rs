@@ -125,6 +125,50 @@ impl Client {
             .block_on(self.client.execute_typed(query, params))
     }
 
+    /// The maximally flexible version of [`execute_typed`].
+    ///
+    /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
+    /// provided, 1-indexed.
+    ///
+    /// Compared to `execute`, this method allows performing queries without three round trips (for
+    /// prepare, execute, and close) by requiring the caller to specify parameter values along with
+    /// their Postgres type. Thus, this is suitable in environments where prepared statements aren't
+    /// supported (such as Cloudflare Workers with Hyperdrive).
+    ///
+    /// If the statement does not modify any rows (e.g. `SELECT`), 0 is returned.
+    ///
+    /// [`execute_typed`]: #method.execute_typed
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use postgres::{Client, NoTls, types::Type};
+    ///
+    /// # fn main() -> Result<(), postgres::Error> {
+    /// let mut client = Client::connect("host=localhost user=postgres", NoTls)?;
+    ///
+    /// let params: Vec<(String, Type)> = vec![
+    ///     ("first param".into(), Type::TEXT),
+    ///     ("second param".into(), Type::TEXT),
+    /// ];
+    /// let rows_updated = client.execute_typed_raw(
+    ///     "UPDATE foo SET bar = $1 WHERE baz = $2",
+    ///     params,
+    /// )?;
+    ///
+    /// println!("{} rows updated", rows_updated);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn execute_typed_raw<P, I>(&mut self, query: &str, params: I) -> Result<u64, Error>
+    where
+        P: BorrowToSql,
+        I: IntoIterator<Item = (P, Type)>,
+    {
+        self.connection
+            .block_on(self.client.execute_typed_raw(query, params))
+    }
+
     /// Executes a statement, returning the resulting rows.
     ///
     /// A statement may contain parameters, specified by `$n`, where `n` is the index of the parameter of the list
