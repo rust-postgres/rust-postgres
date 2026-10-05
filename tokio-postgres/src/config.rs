@@ -215,6 +215,20 @@ pub enum Host {
 /// ```not_rust
 /// postgresql:///mydb?user=user&host=/var/run/postgresql
 /// ```
+///
+/// # Run-time parameters
+///
+/// The startup message which this crate sends to the server contains
+/// `client_encoding=UTF8` and, when they are configured, `user`, `database`,
+/// `options` and `application_name`. Any other run-time parameter, for example
+/// `TimeZone` or `search_path`, can be added with the [`param`] method. This
+/// crate sets no other parameter and applies no default of its own.
+///
+/// Run-time parameters cannot be set from a connection string, since a
+/// connection string accepts only the keywords listed above. Use the `options`
+/// keyword for that, for example `options=-c%20TimeZone%3DUTC`.
+///
+/// [`param`]: Config::param
 #[derive(Clone, PartialEq, Eq)]
 pub struct Config {
     pub(crate) user: Option<String>,
@@ -222,6 +236,7 @@ pub struct Config {
     pub(crate) dbname: Option<String>,
     pub(crate) options: Option<String>,
     pub(crate) application_name: Option<String>,
+    pub(crate) params: Vec<(String, String)>,
     pub(crate) ssl_mode: SslMode,
     pub(crate) ssl_negotiation: SslNegotiation,
     pub(crate) host: Vec<Host>,
@@ -252,6 +267,7 @@ impl Config {
             dbname: None,
             options: None,
             application_name: None,
+            params: Vec::new(),
             ssl_mode: SslMode::Prefer,
             ssl_negotiation: SslNegotiation::Postgres,
             host: vec![],
@@ -337,6 +353,45 @@ impl Config {
     /// been set with the `application_name` method.
     pub fn get_application_name(&self) -> Option<&str> {
         self.application_name.as_deref()
+    }
+
+    /// Adds a run-time parameter, such as `TimeZone` or `search_path`, to the
+    /// startup message sent to the server.
+    ///
+    /// The server applies the parameter at backend start, so it acts as a
+    /// session default, which survives `RESET ALL` and `DISCARD ALL`.
+    ///
+    /// A parameter of the same name added before is replaced. Parameters are
+    /// sent in the order in which they were added, after the entries this crate
+    /// sends itself, so they override a built-in entry of the same name.
+    /// Nothing is validated on the client side, and a connection pooler can
+    /// reject a parameter which it does not track.
+    ///
+    /// Connection strings do not accept run-time parameters as keywords. Use
+    /// the `options` setting there, for example `options=-c%20TimeZone%3DUTC`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use tokio_postgres::Config;
+    /// let mut config = Config::new();
+    /// config.param("TimeZone", "UTC");
+    /// config.param("search_path", "myschema, public");
+    /// ```
+    pub fn param(&mut self, name: impl Into<String>, value: impl Into<String>) -> &mut Config {
+        let name = name.into();
+        let value = value.into();
+        match self.params.iter_mut().find(|(n, _)| *n == name) {
+            Some(param) => param.1 = value,
+            None => self.params.push((name, value)),
+        }
+        self
+    }
+
+    /// Gets the run-time parameters which have been set with the `param`
+    /// method, in the order in which they were added.
+    pub fn get_params(&self) -> &[(String, String)] {
+        &self.params
     }
 
     /// Sets the SSL configuration.
@@ -564,7 +619,7 @@ impl Config {
         self.load_balance_hosts
     }
 
-    fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
+    fn set_keyword(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
                 self.user(value);
@@ -735,7 +790,8 @@ impl Config {
 
     /// Connects to a PostgreSQL database over an arbitrary stream.
     ///
-    /// All of the settings other than `user`, `password`, `dbname`, `options`, and `application_name` name are ignored.
+    /// All of the settings other than `user`, `password`, `dbname`, `options`, `application_name`, and the
+    /// run-time parameters set with `param` are ignored.
     pub async fn connect_raw<S, T>(
         &self,
         stream: S,
@@ -777,6 +833,7 @@ impl fmt::Debug for Config {
             .field("dbname", &self.dbname)
             .field("options", &self.options)
             .field("application_name", &self.application_name)
+            .field("params", &self.params)
             .field("ssl_mode", &self.ssl_mode)
             .field("host", &self.host)
             .field("hostaddr", &self.hostaddr)
@@ -838,7 +895,7 @@ impl<'a> Parser<'a> {
         let mut config = Config::new();
 
         while let Some((key, value)) = parser.parameter()? {
-            config.param(key, &value)?;
+            config.set_keyword(key, &value)?;
         }
 
         Ok(config)
@@ -1084,7 +1141,7 @@ impl<'a> UrlParser<'a> {
 
             self.host_param(host)?;
             let port = self.decode(port.unwrap_or("5432"))?;
-            self.config.param("port", &port)?;
+            self.config.set_keyword("port", &port)?;
         }
 
         Ok(())
@@ -1133,7 +1190,7 @@ impl<'a> UrlParser<'a> {
                 self.host_param(value)?;
             } else {
                 let value = self.decode(value)?;
-                self.config.param(&key, &value)?;
+                self.config.set_keyword(&key, &value)?;
             }
         }
 
@@ -1156,7 +1213,7 @@ impl<'a> UrlParser<'a> {
     #[cfg(not(unix))]
     fn host_param(&mut self, s: &str) -> Result<(), Error> {
         let s = self.decode(s)?;
-        self.config.param("host", &s)
+        self.config.set_keyword("host", &s)
     }
 
     fn decode(&self, s: &'a str) -> Result<Cow<'a, str>, Error> {
@@ -1201,5 +1258,51 @@ mod tests {
     fn test_invalid_hostaddr_parsing() {
         let s = "user=pass_user dbname=postgres host=host1 hostaddr=127.0.0 port=26257";
         s.parse::<Config>().err().unwrap();
+    }
+
+    #[test]
+    fn test_params() {
+        let mut config = Config::new();
+        config
+            .param("TimeZone", "UTC")
+            .param("search_path", "public");
+
+        assert_eq!(
+            [
+                ("TimeZone".to_string(), "UTC".to_string()),
+                ("search_path".to_string(), "public".to_string()),
+            ],
+            config.get_params(),
+        );
+
+        // a second call with the same name replaces the value and keeps the position
+        config.param("TimeZone", "Europe/Madrid");
+        assert_eq!(
+            [
+                ("TimeZone".to_string(), "Europe/Madrid".to_string()),
+                ("search_path".to_string(), "public".to_string()),
+            ],
+            config.get_params(),
+        );
+
+        let mut other = Config::new();
+        other
+            .param("TimeZone", "Europe/Madrid")
+            .param("search_path", "public");
+        assert_eq!(config, other);
+
+        assert!(format!("{config:?}").contains("Europe/Madrid"));
+    }
+
+    #[test]
+    fn test_params_are_not_a_connection_string_keyword() {
+        "user=pass_user TimeZone=UTC"
+            .parse::<Config>()
+            .err()
+            .unwrap();
+        "postgresql:///?TimeZone=UTC"
+            .parse::<Config>()
+            .err()
+            .unwrap();
     }
 }

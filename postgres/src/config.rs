@@ -129,6 +129,20 @@ use tokio_postgres::{Error, Socket};
 /// ```not_rust
 /// postgresql:///mydb?user=user&host=/var/run/postgresql
 /// ```
+///
+/// # Run-time parameters
+///
+/// The startup message which this crate sends to the server contains
+/// `client_encoding=UTF8` and, when they are configured, `user`, `database`,
+/// `options` and `application_name`. Any other run-time parameter, for example
+/// `TimeZone` or `search_path`, can be added with the [`param`] method. This
+/// crate sets no other parameter and applies no default of its own.
+///
+/// Run-time parameters cannot be set from a connection string, since a
+/// connection string accepts only the keywords listed above. Use the `options`
+/// keyword for that, for example `options=-c%20TimeZone%3DUTC`.
+///
+/// [`param`]: Config::param
 #[derive(Clone)]
 pub struct Config {
     config: tokio_postgres::Config,
@@ -220,6 +234,40 @@ impl Config {
     /// been set with the `application_name` method.
     pub fn get_application_name(&self) -> Option<&str> {
         self.config.get_application_name()
+    }
+
+    /// Adds a run-time parameter, such as `TimeZone` or `search_path`, to the
+    /// startup message sent to the server.
+    ///
+    /// The server applies the parameter at backend start, so it acts as a
+    /// session default, which survives `RESET ALL` and `DISCARD ALL`.
+    ///
+    /// A parameter of the same name added before is replaced. Parameters are
+    /// sent in the order in which they were added, after the entries this crate
+    /// sends itself, so they override a built-in entry of the same name.
+    /// Nothing is validated on the client side, and a connection pooler can
+    /// reject a parameter which it does not track.
+    ///
+    /// Connection strings do not accept run-time parameters as keywords. Use
+    /// the `options` setting there, for example `options=-c%20TimeZone%3DUTC`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use postgres::Config;
+    /// let mut config = Config::new();
+    /// config.param("TimeZone", "UTC");
+    /// config.param("search_path", "myschema, public");
+    /// ```
+    pub fn param(&mut self, name: &str, value: &str) -> &mut Config {
+        self.config.param(name, value);
+        self
+    }
+
+    /// Gets the run-time parameters which have been set with the `param`
+    /// method, in the order in which they were added.
+    pub fn get_params(&self) -> &[(String, String)] {
+        self.config.get_params()
     }
 
     /// Sets the SSL configuration.

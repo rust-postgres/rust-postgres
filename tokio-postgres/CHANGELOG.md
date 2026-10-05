@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+### Added
+
+* Added `Config::param` and `Config::get_params` to set arbitrary run-time parameters in the startup message.
+
 ## v0.7.18 - 2026-06-12
 
 ### Fixed

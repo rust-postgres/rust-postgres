@@ -135,6 +135,20 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
     T: AsyncRead + AsyncWrite + Unpin,
 {
+    let mut buf = BytesMut::new();
+    frontend::startup_message(startup_params(config, user), &mut buf).map_err(Error::encode)?;
+
+    stream
+        .send(FrontendMessage::Raw(buf.freeze()))
+        .await
+        .map_err(Error::io)
+}
+
+/// Assembles the run-time parameters of the startup message.
+///
+/// The parameters configured with `Config::param` are appended last, so the
+/// server applies them after the entries which this crate sends itself.
+fn startup_params<'a>(config: &'a Config, user: &'a str) -> Vec<(&'a str, &'a str)> {
     let mut params = vec![("client_encoding", "UTF8")];
     params.push(("user", user));
     if let Some(dbname) = &config.dbname {
@@ -146,14 +160,11 @@ where
     if let Some(application_name) = &config.application_name {
         params.push(("application_name", &**application_name));
     }
+    for (name, value) in &config.params {
+        params.push((&**name, &**value));
+    }
 
-    let mut buf = BytesMut::new();
-    frontend::startup_message(params, &mut buf).map_err(Error::encode)?;
-
-    stream
-        .send(FrontendMessage::Raw(buf.freeze()))
-        .await
-        .map_err(Error::io)
+    params
 }
 
 async fn authenticate<S, T>(
@@ -364,5 +375,70 @@ where
             Some(_) => return Err(Error::unexpected_message()),
             None => return Err(Error::closed()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn startup_params_without_params() {
+        let mut config = Config::new();
+        config
+            .dbname("mydb")
+            .options("-c geqo=off")
+            .application_name("myapp");
+
+        assert_eq!(
+            startup_params(&config, "myuser"),
+            [
+                ("client_encoding", "UTF8"),
+                ("user", "myuser"),
+                ("database", "mydb"),
+                ("options", "-c geqo=off"),
+                ("application_name", "myapp"),
+            ],
+        );
+    }
+
+    #[test]
+    fn startup_params_with_params() {
+        let mut config = Config::new();
+        config
+            .dbname("mydb")
+            .param("TimeZone", "UTC")
+            .param("DateStyle", "ISO, MDY");
+
+        assert_eq!(
+            startup_params(&config, "myuser"),
+            [
+                ("client_encoding", "UTF8"),
+                ("user", "myuser"),
+                ("database", "mydb"),
+                ("TimeZone", "UTC"),
+                ("DateStyle", "ISO, MDY"),
+            ],
+        );
+    }
+
+    #[test]
+    fn startup_params_override_builtins() {
+        let mut config = Config::new();
+        config
+            .application_name("myapp")
+            .param("client_encoding", "LATIN1")
+            .param("application_name", "otherapp");
+
+        assert_eq!(
+            startup_params(&config, "myuser"),
+            [
+                ("client_encoding", "UTF8"),
+                ("user", "myuser"),
+                ("application_name", "myapp"),
+                ("client_encoding", "LATIN1"),
+                ("application_name", "otherapp"),
+            ],
+        );
     }
 }

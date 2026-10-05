@@ -1360,3 +1360,62 @@ async fn query_scalar() {
         .unwrap();
     assert_eq!(age, Some(20));
 }
+
+async fn connect_with(config: &Config) -> Client {
+    let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
+    let (client, connection) = config.connect_raw(socket, NoTls).await.unwrap();
+    tokio::spawn(connection.map(|r| r.unwrap()));
+    client
+}
+
+async fn show(client: &Client, name: &str) -> String {
+    client
+        .query_one_scalar(&format!("SHOW {name}"), &[])
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn startup_params() {
+    let mut config = "user=postgres".parse::<Config>().unwrap();
+    config
+        .param("TimeZone", "UTC")
+        .param("DateStyle", "ISO, MDY")
+        .param("search_path", "pg_catalog");
+
+    let client = connect_with(&config).await;
+
+    assert_eq!(show(&client, "TimeZone").await, "UTC");
+    assert_eq!(show(&client, "DateStyle").await, "ISO, MDY");
+    assert_eq!(show(&client, "search_path").await, "pg_catalog");
+
+    // the values come from the startup message, not from a `SET` statement
+    let source: String = client
+        .query_one_scalar(
+            "SELECT source FROM pg_settings WHERE name = 'TimeZone'",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(source, "client");
+}
+
+#[tokio::test]
+async fn no_startup_params() {
+    let config = "user=postgres".parse::<Config>().unwrap();
+    let client = connect_with(&config).await;
+
+    // without a `param` call the connection keeps the server's own settings
+    let row = client
+        .query_one(
+            "SELECT setting, source FROM pg_settings WHERE name = 'TimeZone'",
+            &[],
+        )
+        .await
+        .unwrap();
+    let setting: String = row.get(0);
+    let source: String = row.get(1);
+
+    assert_ne!(source, "client");
+    assert_eq!(show(&client, "TimeZone").await, setting);
+}
