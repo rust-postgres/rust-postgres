@@ -153,6 +153,21 @@ impl InnerClient {
         buffer.clear();
         r
     }
+
+    /// Closes a named prepared statement (`b'S'`) or portal (`b'P'`).
+    ///
+    /// Fire-and-forget: if the connection is gone then so is the session, and
+    /// with it the object being closed. Closing a name that does not exist is
+    /// explicitly not an error in the protocol, so callers do not have to know
+    /// whether the object was really created.
+    pub fn close(&self, target: u8, name: &str) {
+        let buf = self.with_buf(|buf| {
+            frontend::close(target, name, buf).unwrap();
+            frontend::sync(buf);
+            buf.split().freeze()
+        });
+        let _ = self.send(RequestMessages::Single(FrontendMessage::Raw(buf)));
+    }
 }
 
 #[cfg(feature = "runtime")]
@@ -769,6 +784,20 @@ impl Client {
     /// In that case, all future queries will fail.
     pub fn is_closed(&self) -> bool {
         self.inner.sender.is_closed()
+    }
+
+    /// Destroys a savepoint, merging its work into the enclosing transaction.
+    ///
+    /// Unlike `ROLLBACK TO`, which leaves the savepoint defined, this removes it
+    /// entirely. Used to undo a `SAVEPOINT` whose `Transaction` was never built.
+    pub(crate) fn release_savepoint(&self, name: &str) {
+        let buf = self.inner().with_buf(|buf| {
+            frontend::query(&format!("RELEASE SAVEPOINT {name}"), buf).unwrap();
+            buf.split().freeze()
+        });
+        let _ = self
+            .inner()
+            .send(RequestMessages::Single(FrontendMessage::Raw(buf)));
     }
 
     #[doc(hidden)]

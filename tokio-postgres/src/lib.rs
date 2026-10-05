@@ -168,6 +168,7 @@ mod connect_tls;
 mod connection;
 mod copy_in;
 mod copy_out;
+mod dropguard;
 pub mod error;
 mod generic_client;
 #[cfg(not(target_arch = "wasm32"))]
