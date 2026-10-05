@@ -1,5 +1,12 @@
 # Change Log
 
+## Unreleased
+
+### Added
+
+* Added the `FromRow` trait and feature-gated `#[derive(FromRow)]` support.
+* Added `query_as`, `query_one_as`, and `query_opt_as` to `Client`, `Transaction`, and `GenericClient`.
+
 ## v0.7.18 - 2026-06-12
 
 ### Fixed

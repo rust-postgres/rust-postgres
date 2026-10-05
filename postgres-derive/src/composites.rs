@@ -1,11 +1,13 @@
 use proc_macro2::Span;
 use syn::{
-    Error, GenericParam, Generics, Ident, Path, PathSegment, Type, TypeParamBound,
+    Error, GenericParam, Generics, Ident, Path, PathSegment, Type, TypeParamBound, ext::IdentExt,
     punctuated::Punctuated,
 };
 
-use crate::{case::RenameRule, overrides::Overrides};
+use crate::case::RenameRule;
+use crate::overrides::{Derive, Overrides};
 
+/// Named Rust field mapped to a PostgreSQL composite field or row column.
 pub struct Field {
     pub name: String,
     pub ident: Ident,
@@ -13,20 +15,22 @@ pub struct Field {
 }
 
 impl Field {
-    pub fn parse(raw: &syn::Field, rename_all: Option<RenameRule>) -> Result<Field, Error> {
-        let overrides = Overrides::extract(&raw.attrs, false)?;
+    pub fn parse(
+        raw: &syn::Field,
+        rename_all: Option<RenameRule>,
+        derive: Derive,
+    ) -> Result<Field, Error> {
+        let overrides = Overrides::extract(&raw.attrs, false, derive)?;
         let ident = raw.ident.as_ref().unwrap().clone();
 
-        // field level name override takes precendence over container level rename_all override
         let name = match overrides.name {
             Some(n) => n,
             None => {
-                let name = ident.to_string();
-                let stripped = name.strip_prefix("r#").map(String::from).unwrap_or(name);
+                let name = ident.unraw().to_string();
 
                 match rename_all {
-                    Some(rule) => rule.apply_to_field(&stripped),
-                    None => stripped,
+                    Some(rule) => rule.apply_to_field(&name),
+                    None => name,
                 }
             }
         };

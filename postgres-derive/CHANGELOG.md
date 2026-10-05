@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+### Added
+
+* Added a derive macro for `tokio_postgres::FromRow` behind the `from-row` feature.
+
 ## v0.4.9 - 2026-06-12
 
 ### Fixed

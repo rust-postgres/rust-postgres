@@ -1,0 +1,23 @@
+error: unknown attribute
+ --> src/from_row/fail/type_only_options.rs:4:12
+  |
+4 | #[postgres(transparent)]
+  |            ^^^^^^^^^^^
+
+error: unknown attribute
+  --> src/from_row/fail/type_only_options.rs:10:12
+   |
+10 | #[postgres(allow_mismatch)]
+   |            ^^^^^^^^^^^^^^
+
+error: unknown attribute
+  --> src/from_row/fail/type_only_options.rs:17:16
+   |
+17 |     #[postgres(transparent)]
+   |                ^^^^^^^^^^^
+
+error: unknown attribute
+  --> src/from_row/fail/type_only_options.rs:23:16
+   |
+23 |     #[postgres(allow_mismatch)]
+   |                ^^^^^^^^^^^^^^

@@ -95,6 +95,22 @@ where
     }
 }
 
+/// A type that can be built from a query row.
+///
+/// Implementations typically decode fields with [`Row::try_get`], preserving each column's
+/// [`FromSql`] behavior. The `derive` feature provides an implementation for structs with named
+/// fields through `#[derive(FromRow)]`.
+///
+/// Implementations may borrow from the row. Convenience methods such as
+/// [`Client::query_as`](crate::Client::query_as), [`Client::query_one_as`](crate::Client::query_one_as),
+/// and [`Client::query_opt_as`](crate::Client::query_opt_as) require an implementation for every
+/// row lifetime, so their results cannot borrow from the rows. Call [`FromRow::from_row`] directly
+/// to keep a mapping tied to a live row.
+pub trait FromRow<'a>: Sized {
+    /// Build `Self` from a query row.
+    fn from_row(row: &'a Row) -> Result<Self, Error>;
+}
+
 /// A row of data returned from the database by a query.
 #[derive(Clone)]
 pub struct Row {

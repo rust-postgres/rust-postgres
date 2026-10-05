@@ -1,6 +1,6 @@
 use crate::query::RowStream;
 use crate::types::{BorrowToSql, ToSql, Type};
-use crate::{Client, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction};
+use crate::{Client, Error, FromRow, Row, SimpleQueryMessage, Statement, ToStatement, Transaction};
 use async_trait::async_trait;
 
 mod private {
@@ -37,6 +37,15 @@ pub trait GenericClient: private::Sealed {
     where
         T: ?Sized + ToStatement + Sync + Send;
 
+    /// Like [`Client::query_as`].
+    async fn query_as<R>(
+        &self,
+        query: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<R>, Error>
+    where
+        R: for<'a> FromRow<'a>;
+
     /// Like [`Client::query_one`].
     async fn query_one<T>(
         &self,
@@ -46,6 +55,15 @@ pub trait GenericClient: private::Sealed {
     where
         T: ?Sized + ToStatement + Sync + Send;
 
+    /// Like [`Client::query_one_as`].
+    async fn query_one_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<R, Error>
+    where
+        R: for<'a> FromRow<'a>;
+
     /// Like [`Client::query_opt`].
     async fn query_opt<T>(
         &self,
@@ -54,6 +72,15 @@ pub trait GenericClient: private::Sealed {
     ) -> Result<Option<Row>, Error>
     where
         T: ?Sized + ToStatement + Sync + Send;
+
+    /// Like [`Client::query_opt_as`].
+    async fn query_opt_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<R>, Error>
+    where
+        R: for<'a> FromRow<'a>;
 
     /// Like [`Client::query_raw`].
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
@@ -70,14 +97,14 @@ pub trait GenericClient: private::Sealed {
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Vec<Row>, Error>;
 
-    /// Like [`Client::query_one_typed`].
+    /// Like [`Client::query_typed_one`].
     async fn query_typed_one(
         &self,
         statement: &str,
         params: &[(&(dyn ToSql + Sync), Type)],
     ) -> Result<Row, Error>;
 
-    /// Like [`Client::query_opt_typed`].
+    /// Like [`Client::query_typed_opt`].
     async fn query_typed_opt(
         &self,
         statement: &str,
@@ -149,6 +176,17 @@ impl GenericClient for Client {
         self.query(query, params).await
     }
 
+    async fn query_as<R>(
+        &self,
+        query: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<R>, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        self.query_as(query, params).await
+    }
+
     async fn query_one<T>(
         &self,
         statement: &T,
@@ -160,6 +198,17 @@ impl GenericClient for Client {
         self.query_one(statement, params).await
     }
 
+    async fn query_one_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<R, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        self.query_one_as(statement, params).await
+    }
+
     async fn query_opt<T>(
         &self,
         statement: &T,
@@ -169,6 +218,17 @@ impl GenericClient for Client {
         T: ?Sized + ToStatement + Sync + Send,
     {
         self.query_opt(statement, params).await
+    }
+
+    async fn query_opt_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<R>, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        self.query_opt_as(statement, params).await
     }
 
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
@@ -197,7 +257,7 @@ impl GenericClient for Client {
         self.query_typed_one(statement, params).await
     }
 
-    /// Like [`Client::query_opt_typed`].
+    /// Like [`Client::query_typed_opt`].
     async fn query_typed_opt(
         &self,
         statement: &str,
@@ -272,6 +332,17 @@ impl GenericClient for Transaction<'_> {
         self.query(query, params).await
     }
 
+    async fn query_as<R>(
+        &self,
+        query: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<R>, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        self.query_as(query, params).await
+    }
+
     async fn query_one<T>(
         &self,
         statement: &T,
@@ -283,6 +354,17 @@ impl GenericClient for Transaction<'_> {
         self.query_one(statement, params).await
     }
 
+    async fn query_one_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<R, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        self.query_one_as(statement, params).await
+    }
+
     async fn query_opt<T>(
         &self,
         statement: &T,
@@ -292,6 +374,17 @@ impl GenericClient for Transaction<'_> {
         T: ?Sized + ToStatement + Sync + Send,
     {
         self.query_opt(statement, params).await
+    }
+
+    async fn query_opt_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement + Sync + Send),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<R>, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        self.query_opt_as(statement, params).await
     }
 
     async fn query_raw<T, P, I>(&self, statement: &T, params: I) -> Result<RowStream, Error>
@@ -320,7 +413,7 @@ impl GenericClient for Transaction<'_> {
         self.query_typed_one(statement, params).await
     }
 
-    /// Like [`Client::query_opt_typed`].
+    /// Like [`Client::query_typed_opt`].
     async fn query_typed_opt(
         &self,
         statement: &str,

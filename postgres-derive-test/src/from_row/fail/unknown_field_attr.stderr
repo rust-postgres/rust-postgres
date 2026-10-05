@@ -1,0 +1,5 @@
+error: unknown override
+ --> src/from_row/fail/unknown_field_attr.rs:5:16
+  |
+5 |     #[postgres(foo = "bar")]
+  |                ^^^

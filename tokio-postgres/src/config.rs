@@ -55,7 +55,7 @@ pub enum SslMode {
 /// TLS negotiation configuration
 ///
 /// See more information at
-/// https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-SSLNEGOTIATION
+/// <https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-SSLNEGOTIATION>
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum SslNegotiation {

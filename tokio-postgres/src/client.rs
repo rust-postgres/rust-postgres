@@ -13,8 +13,8 @@ use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::types::{Oid, ToSql, Type};
 use crate::{
-    CancelToken, CopyInSink, Error, Row, SimpleQueryMessage, Statement, ToStatement, Transaction,
-    TransactionBuilder, copy_in, copy_out, prepare, query, simple_query, slice_iter,
+    CancelToken, CopyInSink, Error, FromRow, Row, SimpleQueryMessage, Statement, ToStatement,
+    Transaction, TransactionBuilder, copy_in, copy_out, prepare, query, simple_query, slice_iter,
 };
 use bytes::{Buf, BytesMut};
 use fallible_iterator::FallibleIterator;
@@ -262,6 +262,24 @@ impl Client {
             .await
     }
 
+    /// Execute a query and map its rows with [`FromRow`].
+    ///
+    /// Statement and parameter handling follow [`Client::query`]. Mapping stops at the first error.
+    /// The returned values cannot borrow from the rows; use [`FromRow::from_row`] directly for
+    /// borrowed mappings.
+    pub async fn query_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Vec<R>, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        let rows = self.query(statement, params).await?;
+
+        rows.into_iter().map(|row| R::from_row(&row)).collect()
+    }
+
     /// Returns a vector of scalars.
     pub async fn query_scalar<R: FromSqlOwned, T>(
         &self,
@@ -307,6 +325,24 @@ impl Client {
         self.query_opt(statement, params)
             .await
             .and_then(|res| res.ok_or_else(Error::row_count))
+    }
+
+    /// Execute a query returning exactly one row and map it with [`FromRow`].
+    ///
+    /// Like [`Client::query_one`], this returns an error if the query does not return exactly one
+    /// row. The returned value cannot borrow from the row; use [`FromRow::from_row`] directly for
+    /// borrowed mappings.
+    pub async fn query_one_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<R, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        let row = self.query_one(statement, params).await?;
+
+        R::from_row(&row)
     }
 
     /// Like [`Client::query_one`] but returns one scalar.
@@ -363,6 +399,24 @@ impl Client {
         }
 
         Ok(first)
+    }
+
+    /// Execute a query returning at most one row and map it with [`FromRow`].
+    ///
+    /// Like [`Client::query_opt`], this returns `None` for no rows and an error for more than one.
+    /// The returned value cannot borrow from the row; use [`FromRow::from_row`] directly for
+    /// borrowed mappings.
+    pub async fn query_opt_as<R>(
+        &self,
+        statement: &(impl ?Sized + ToStatement),
+        params: &[&(dyn ToSql + Sync)],
+    ) -> Result<Option<R>, Error>
+    where
+        R: for<'a> FromRow<'a>,
+    {
+        let row = self.query_opt(statement, params).await?;
+
+        row.as_ref().map(R::from_row).transpose()
     }
 
     /// Like [`Client::query_opt`] but returns an optional scalar.

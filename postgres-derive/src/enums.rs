@@ -1,6 +1,7 @@
 use syn::{Error, Fields, Ident};
 
-use crate::{case::RenameRule, overrides::Overrides};
+use crate::case::RenameRule;
+use crate::overrides::{Derive, Overrides};
 
 pub struct Variant {
     pub ident: Ident,
@@ -18,9 +19,8 @@ impl Variant {
                 ));
             }
         }
-        let overrides = Overrides::extract(&raw.attrs, false)?;
+        let overrides = Overrides::extract(&raw.attrs, false, Derive::Sql)?;
 
-        // variant level name override takes precendence over container level rename_all override
         let name = overrides.name.unwrap_or_else(|| match rename_all {
             Some(rule) => rule.apply_to_field(&raw.ident.to_string()),
             None => raw.ident.to_string(),

@@ -1,0 +1,8 @@
+error: implementation of `FromRow` is not general enough
+ --> src/from_row/fail/borrowed_query.rs:9:19
+  |
+9 |     let _future = client.query_one_as::<User<'_>>("SELECT name FROM users", &[]);
+  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `FromRow` is not general enough
+  |
+  = note: `User<'_>` must implement `FromRow<'0>`, for any lifetime `'0`...
+  = note: ...but `User<'_>` actually implements `FromRow<'1>`, for some specific lifetime `'1`

@@ -1,0 +1,5 @@
+error: unknown override
+ --> src/from_row/fail/unknown_container_attr.rs:4:12
+  |
+4 | #[postgres(foo = "bar")]
+  |            ^^^
