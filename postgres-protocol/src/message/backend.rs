@@ -22,6 +22,7 @@ pub const DATA_ROW_TAG: u8 = b'D';
 pub const ERROR_RESPONSE_TAG: u8 = b'E';
 pub const COPY_IN_RESPONSE_TAG: u8 = b'G';
 pub const COPY_OUT_RESPONSE_TAG: u8 = b'H';
+pub const COPY_BOTH_RESPONSE_TAG: u8 = b'W';
 pub const EMPTY_QUERY_RESPONSE_TAG: u8 = b'I';
 pub const BACKEND_KEY_DATA_TAG: u8 = b'K';
 pub const NO_DATA_TAG: u8 = b'n';
@@ -93,6 +94,7 @@ pub enum Message {
     CopyDone,
     CopyInResponse(CopyInResponseBody),
     CopyOutResponse(CopyOutResponseBody),
+    CopyBothResponse(CopyBothResponseBody),
     DataRow(DataRowBody),
     EmptyQueryResponse,
     ErrorResponse(ErrorResponseBody),
@@ -185,6 +187,16 @@ impl Message {
                 let len = buf.read_u16::<BigEndian>()?;
                 let storage = buf.read_all();
                 Message::CopyOutResponse(CopyOutResponseBody {
+                    format,
+                    len,
+                    storage,
+                })
+            }
+            COPY_BOTH_RESPONSE_TAG => {
+                let format = buf.read_u8()?;
+                let len = buf.read_u16::<BigEndian>()?;
+                let storage = buf.read_all();
+                Message::CopyBothResponse(CopyBothResponseBody {
                     format,
                     len,
                     storage,
@@ -510,6 +522,28 @@ pub struct CopyOutResponseBody {
 }
 
 impl CopyOutResponseBody {
+    #[inline]
+    pub fn format(&self) -> u8 {
+        self.format
+    }
+
+    #[inline]
+    pub fn column_formats(&self) -> ColumnFormats<'_> {
+        ColumnFormats {
+            remaining: self.len,
+            buf: &self.storage,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CopyBothResponseBody {
+    format: u8,
+    len: u16,
+    storage: Bytes,
+}
+
+impl CopyBothResponseBody {
     #[inline]
     pub fn format(&self) -> u8 {
         self.format

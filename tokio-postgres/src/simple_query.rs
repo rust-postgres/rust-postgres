@@ -61,7 +61,7 @@ pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Erro
     }
 }
 
-fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
+pub(crate) fn encode(client: &InnerClient, query: &str) -> Result<Bytes, Error> {
     client.with_buf(|buf| {
         frontend::query(query, buf).map_err(Error::encode)?;
         Ok(buf.split().freeze())
