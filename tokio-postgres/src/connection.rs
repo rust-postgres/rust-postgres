@@ -24,11 +24,11 @@ pub enum RequestMessages {
 
 pub struct Request {
     pub messages: RequestMessages,
-    pub sender: mpsc::Sender<BackendMessages>,
+    pub sender: mpsc::UnboundedSender<BackendMessages>,
 }
 
 pub struct Response {
-    sender: mpsc::Sender<BackendMessages>,
+    sender: mpsc::UnboundedSender<BackendMessages>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -135,7 +135,7 @@ where
                 } => (messages, request_complete),
             };
 
-            let mut response = match self.responses.pop_front() {
+            let response = match self.responses.pop_front() {
                 Some(response) => response,
                 None => match messages.next().map_err(Error::parse)? {
                     Some(Message::ErrorResponse(error)) => return Err(Error::db(error)),
@@ -143,28 +143,13 @@ where
                 },
             };
 
-            match response.sender.poll_ready(cx) {
-                Poll::Ready(Ok(())) => {
-                    let _ = response.sender.start_send(messages);
-                    if !request_complete {
-                        self.responses.push_front(response);
-                    }
-                }
-                Poll::Ready(Err(_)) => {
-                    // we need to keep paging through the rest of the messages even if the receiver's hung up
-                    if !request_complete {
-                        self.responses.push_front(response);
-                    }
-                }
-                Poll::Pending => {
-                    self.responses.push_front(response);
-                    self.pending_responses.push_back(BackendMessage::Normal {
-                        messages,
-                        request_complete,
-                    });
-                    trace!("poll_read: waiting on sender");
-                    return Ok(None);
-                }
+            // Unbounded sender: never blocks. The only failure mode is the
+            // receiver having been dropped (consumer abandoned the
+            // `Responses` mid-stream), in which case we still need to keep
+            // paging through to find ReadyForQuery for the next request.
+            let _ = response.sender.unbounded_send(messages);
+            if !request_complete {
+                self.responses.push_front(response);
             }
         }
     }

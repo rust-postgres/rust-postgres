@@ -39,7 +39,14 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 pub struct Responses {
-    receiver: mpsc::Receiver<BackendMessages>,
+    // Unbounded so the `Connection` task can keep draining the wire while
+    // the per-request consumer is paused mid-stream (e.g. waiting on a
+    // typeinfo lookup for an unknown result OID via `prepare::get_type`).
+    // With a bounded(1) channel the consumer pause would back-pressure the
+    // `Connection`, stop the wire drain, and deadlock the typeinfo
+    // sub-query — head-of-line blocking because the typeinfo response is
+    // queued behind the original query's DataRows on the same socket.
+    receiver: mpsc::UnboundedReceiver<BackendMessages>,
     cur: BackendMessages,
 }
 
@@ -94,7 +101,7 @@ pub struct InnerClient {
 
 impl InnerClient {
     pub fn send(&self, messages: RequestMessages) -> Result<Responses, Error> {
-        let (sender, receiver) = mpsc::channel(1);
+        let (sender, receiver) = mpsc::unbounded();
         let request = Request { messages, sender };
         self.sender
             .unbounded_send(request)
