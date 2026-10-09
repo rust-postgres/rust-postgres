@@ -29,6 +29,8 @@ const MAX_ITERATION_COUNT: u32 = 100_000;
 pub const SCRAM_SHA_256: &str = "SCRAM-SHA-256";
 /// The identifier of the SCRAM-SHA-256-PLUS SASL authentication mechanism.
 pub const SCRAM_SHA_256_PLUS: &str = "SCRAM-SHA-256-PLUS";
+/// The identifier of the OAUTHBEARER SASL authentication mechanism.
+pub const OAUTHBEARER: &str = "OAUTHBEARER";
 
 // since postgres passwords are not required to exclude saslprep-prohibited
 // characters or even be valid UTF8, we run saslprep if possible and otherwise
@@ -302,6 +304,52 @@ impl ScramSha256 {
     }
 }
 
+/// A type which handles the client side of the OAUTHBEARER authentication process.
+///
+/// During the authentication process, if the backend sends an `AuthenticationSASL` message which
+/// includes `OAUTHBEARER` as an authentication mechanism, this type can be used.
+///
+/// The client initial response carries the bearer token, so a successful exchange is a single round
+/// trip: after the buffer returned by the `message()` method is sent to the backend in a
+/// `SASLInitialResponse` message along with the mechanism name, the server replies with
+/// `AuthenticationOk`. OAUTHBEARER defines no additional data for a successful exchange, so there is
+/// no `AuthenticationSASLFinal` message.
+///
+/// If the server rejects the token it instead replies with an `AuthenticationSASLContinue` message
+/// holding a JSON error document. The client must answer that with `ERROR_RESPONSE`, after which the
+/// server reports the failure as an `ErrorResponse`.
+///
+/// OAUTHBEARER defines no channel binding, so the gs2 header is always `n,,`.
+pub struct OAuthBearer {
+    message: String,
+}
+
+impl OAuthBearer {
+    /// The dummy client response required after the server sends an error document (RFC 7628,
+    /// Sec. 3.2.3).
+    ///
+    /// It should be sent to the backend in a `SASLResponse` message. The exchange has already
+    /// failed at that point; sending it is what lets the server report why.
+    pub const ERROR_RESPONSE: &'static [u8] = b"\x01";
+
+    /// Constructs a new instance which will use the provided bearer token for authentication.
+    ///
+    /// The token is a credential and is sent to the server as-is, so the connection should be
+    /// encrypted.
+    pub fn new(token: &str) -> OAuthBearer {
+        // RFC 7628, Sec. 3.1. The authentication scheme is `Bearer` (RFC 6750, Sec. 2.1) and a
+        // trailing space separates it from the token.
+        OAuthBearer {
+            message: format!("n,,\x01auth=Bearer {token}\x01\x01"),
+        }
+    }
+
+    /// Returns the message which should be sent to the backend in a `SASLInitialResponse` message.
+    pub fn message(&self) -> &[u8] {
+        self.message.as_bytes()
+    }
+}
+
 struct Parser<'a> {
     s: &'a str,
     it: iter::Peekable<str::CharIndices<'a>>,
@@ -513,5 +561,28 @@ mod test {
         let mut scram =
             ScramSha256::new_inner(b"foobar", ChannelBinding::unsupported(), nonce.to_string());
         assert!(scram.update(server_first.as_bytes()).is_err());
+    }
+
+    // the client initial response is the whole client side of a successful OAUTHBEARER
+    // exchange, so pinning its bytes pins the mechanism
+    #[test]
+    fn oauthbearer_initial_response() {
+        let bearer = OAuthBearer::new("dummy.token.value");
+        assert_eq!(
+            str::from_utf8(bearer.message()).unwrap(),
+            "n,,\x01auth=Bearer dummy.token.value\x01\x01"
+        );
+    }
+
+    // OAUTHBEARER defines no channel binding, and the server rejects the `p` specifier, so the
+    // gs2 header is not negotiable
+    #[test]
+    fn oauthbearer_gs2_header_is_always_unsupported() {
+        assert!(OAuthBearer::new("t").message().starts_with(b"n,,"));
+    }
+
+    #[test]
+    fn oauthbearer_error_response_is_a_lone_kvsep() {
+        assert_eq!(OAuthBearer::ERROR_RESPONSE, b"\x01");
     }
 }

@@ -16,14 +16,17 @@ use crate::{Client, Connection, Error};
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
+use std::future::Future;
 use std::net::IpAddr;
 use std::ops::Deref;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(unix)]
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::str;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{error, fmt, iter, mem};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -100,6 +103,41 @@ pub enum Host {
     Unix(PathBuf),
 }
 
+/// The future returned by a [`TokenProvider`].
+pub type TokenFuture =
+    Pin<Box<dyn Future<Output = Result<String, Box<dyn error::Error + Sync + Send>>> + Send>>;
+
+/// A source of OAuth 2.0 bearer tokens for `OAUTHBEARER` authentication.
+///
+/// It is called once per connection attempt, so a provider backed by a cache can hand out a fresh
+/// token when the previous one has expired. Acquiring and caching tokens is out of scope for this
+/// crate; see [`Config::token_provider`].
+#[derive(Clone)]
+pub struct TokenProvider(Arc<dyn Fn() -> TokenFuture + Send + Sync>);
+
+impl TokenProvider {
+    /// Requests a bearer token.
+    pub fn get_token(&self) -> TokenFuture {
+        (self.0)()
+    }
+}
+
+// the closure may capture a credential, so it is never rendered
+impl fmt::Debug for TokenProvider {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("TokenProvider(_)")
+    }
+}
+
+// there is nothing to compare but the closure's identity
+impl PartialEq for TokenProvider {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for TokenProvider {}
+
 /// Connection configuration.
 ///
 /// Configuration can be parsed from libpq-style connection strings. These strings come in two formats:
@@ -172,6 +210,8 @@ pub enum Host {
 ///     `disable`, hosts and addresses will be tried in the order provided. If set to `random`, hosts will be tried
 ///     in a random order, and the IP addresses resolved from a hostname will also be tried in a random order. Defaults
 ///     to `disable`.
+/// * `token_provider` - a source of OAuth 2.0 bearer tokens for `OAUTHBEARER` authentication. There is no
+///     connection-string key for this; it can only be set with [`Config::token_provider`].
 ///
 /// ## Examples
 ///
@@ -235,6 +275,7 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
+    pub(crate) token_provider: Option<TokenProvider>,
 }
 
 impl Default for Config {
@@ -269,6 +310,7 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
+            token_provider: None,
         }
     }
 
@@ -564,6 +606,46 @@ impl Config {
         self.load_balance_hosts
     }
 
+    /// Sets the source of OAuth 2.0 bearer tokens used for `OAUTHBEARER` authentication.
+    ///
+    /// PostgreSQL 18 added the `oauth` HBA method, which authenticates a connection with a bearer
+    /// token instead of a password. This crate performs the SASL exchange only: obtaining the
+    /// token, caching it and renewing it are the caller's job, as they are in libpq when a custom
+    /// flow is installed. No token is requested unless the server asks for `OAUTHBEARER`.
+    ///
+    /// The provider is called once per connection attempt, so a caller holding an expiring token
+    /// can refresh it without rebuilding the `Config`.
+    ///
+    /// A bearer token is a credential. It is sent to the server as-is, so `sslmode` should be set
+    /// such that the connection is encrypted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_postgres::Config;
+    ///
+    /// let token = String::from("dummy.token.value");
+    ///
+    /// let mut config = Config::new();
+    /// config.token_provider(move || {
+    ///     let token = token.clone();
+    ///     async move { Ok(token) }
+    /// });
+    /// ```
+    pub fn token_provider<F, Fut>(&mut self, provider: F) -> &mut Config
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<String, Box<dyn error::Error + Sync + Send>>> + Send + 'static,
+    {
+        self.token_provider = Some(TokenProvider(Arc::new(move || Box::pin(provider()))));
+        self
+    }
+
+    /// Gets the source of OAuth 2.0 bearer tokens, if one has been set.
+    pub fn get_token_provider(&self) -> Option<&TokenProvider> {
+        self.token_provider.as_ref()
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -797,6 +879,7 @@ impl fmt::Debug for Config {
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
             .field("load_balance_hosts", &self.load_balance_hosts)
+            .field("token_provider", &self.token_provider)
             .finish()
     }
 }
@@ -1169,6 +1252,10 @@ impl<'a> UrlParser<'a> {
 #[cfg(test)]
 mod tests {
     use std::net::IpAddr;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use futures_executor::block_on;
 
     use crate::{Config, config::Host};
 
@@ -1201,5 +1288,83 @@ mod tests {
     fn test_invalid_hostaddr_parsing() {
         let s = "user=pass_user dbname=postgres host=host1 hostaddr=127.0.0 port=26257";
         s.parse::<Config>().err().unwrap();
+    }
+
+    #[test]
+    fn test_no_token_provider_by_default() {
+        assert!(Config::new().get_token_provider().is_none());
+
+        let config = "user=pass_user dbname=postgres".parse::<Config>().unwrap();
+        assert!(config.get_token_provider().is_none());
+    }
+
+    // there is no libpq key for it, so a connection string cannot install one
+    #[test]
+    fn test_token_provider_has_no_connection_string_key() {
+        "user=pass_user token_provider=whatever"
+            .parse::<Config>()
+            .err()
+            .unwrap();
+    }
+
+    // the provider is called once per connection attempt so that an expiring token can be
+    // refreshed without rebuilding the config
+    #[test]
+    fn test_token_provider_is_called_for_every_request() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&calls);
+
+        let mut config = Config::new();
+        config.token_provider(move || {
+            let n = counter.fetch_add(1, Ordering::SeqCst);
+            async move { Ok(format!("token-{n}")) }
+        });
+
+        let provider = config.get_token_provider().unwrap();
+        assert_eq!("token-0", block_on(provider.get_token()).unwrap());
+        assert_eq!("token-1", block_on(provider.get_token()).unwrap());
+        assert_eq!(2, calls.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_token_provider_error_is_returned() {
+        let mut config = Config::new();
+        config.token_provider(|| async { Err("no token available".into()) });
+
+        let err = block_on(config.get_token_provider().unwrap().get_token())
+            .err()
+            .unwrap();
+        assert_eq!("no token available", err.to_string());
+    }
+
+    // a bearer token is a credential, and so is anything the closure captured to produce it
+    #[test]
+    fn test_debug_redacts_the_token_provider() {
+        let secret = String::from("dummy.token.value");
+
+        let mut config = Config::new();
+        config.token_provider(move || {
+            let secret = secret.clone();
+            async move { Ok(secret) }
+        });
+
+        let debug = format!("{config:?}");
+        assert!(
+            debug.contains("token_provider: Some(TokenProvider(_))"),
+            "{debug}"
+        );
+        assert!(!debug.contains("dummy.token.value"), "{debug}");
+    }
+
+    // `Config` derives `PartialEq`, and a closure has nothing to compare but its identity
+    #[test]
+    fn test_token_provider_equality_is_by_identity() {
+        let mut config = Config::new();
+        config.token_provider(|| async { Ok(String::new()) });
+        assert_eq!(config, config.clone());
+
+        let mut other = Config::new();
+        other.token_provider(|| async { Ok(String::new()) });
+        assert_ne!(config, other);
     }
 }

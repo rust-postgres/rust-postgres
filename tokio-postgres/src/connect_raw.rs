@@ -10,7 +10,7 @@ use futures_channel::mpsc;
 use futures_util::{Sink, SinkExt, Stream, TryStreamExt};
 use postgres_protocol::authentication;
 use postgres_protocol::authentication::sasl;
-use postgres_protocol::authentication::sasl::ScramSha256;
+use postgres_protocol::authentication::sasl::{OAuthBearer, ScramSha256};
 use postgres_protocol::message::backend::{AuthenticationSaslBody, Message};
 use postgres_protocol::message::frontend;
 use std::borrow::Cow;
@@ -192,7 +192,10 @@ where
             authenticate_password(stream, output.as_bytes()).await?;
         }
         Some(Message::AuthenticationSasl(body)) => {
-            authenticate_sasl(stream, body, config).await?;
+            match authenticate_sasl(stream, body, config).await? {
+                SaslProgress::Finished => {}
+                SaslProgress::Authenticated => return Ok(()),
+            }
         }
         Some(Message::AuthenticationKerberosV5)
         | Some(Message::AuthenticationScmCredential)
@@ -241,11 +244,56 @@ where
         .map_err(Error::io)
 }
 
+/// How far a SASL mechanism got before returning.
+enum SaslProgress {
+    /// The mechanism exchange is over; the caller reads the server's final message.
+    Finished,
+    /// The mechanism read `AuthenticationOk` itself; authentication is complete.
+    Authenticated,
+}
+
 async fn authenticate_sasl<S, T>(
     stream: &mut StartupStream<S, T>,
     body: AuthenticationSaslBody,
     config: &Config,
-) -> Result<(), Error>
+) -> Result<SaslProgress, Error>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    T: TlsStream + Unpin,
+{
+    let mut has_scram = false;
+    let mut has_scram_plus = false;
+    let mut has_oauthbearer = false;
+    let mut mechanisms = body.mechanisms();
+    while let Some(mechanism) = mechanisms.next().map_err(Error::parse)? {
+        match mechanism {
+            sasl::SCRAM_SHA_256 => has_scram = true,
+            sasl::SCRAM_SHA_256_PLUS => has_scram_plus = true,
+            sasl::OAUTHBEARER => has_oauthbearer = true,
+            _ => {}
+        }
+    }
+
+    // the server's `oauth` and `scram-sha-256` HBA methods advertise disjoint mechanism lists, so
+    // SCRAM is preferred where both somehow appear rather than a password configuration being
+    // overridden by a token one
+    if has_scram || has_scram_plus {
+        return authenticate_scram(stream, has_scram, has_scram_plus, config).await;
+    }
+
+    if has_oauthbearer {
+        return authenticate_oauthbearer(stream, config).await;
+    }
+
+    Err(Error::authentication("unsupported SASL mechanism".into()))
+}
+
+async fn authenticate_scram<S, T>(
+    stream: &mut StartupStream<S, T>,
+    has_scram: bool,
+    has_scram_plus: bool,
+    config: &Config,
+) -> Result<SaslProgress, Error>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     T: TlsStream + Unpin,
@@ -254,17 +302,6 @@ where
         .password
         .as_ref()
         .ok_or_else(|| Error::config("password missing".into()))?;
-
-    let mut has_scram = false;
-    let mut has_scram_plus = false;
-    let mut mechanisms = body.mechanisms();
-    while let Some(mechanism) = mechanisms.next().map_err(Error::parse)? {
-        match mechanism {
-            sasl::SCRAM_SHA_256 => has_scram = true,
-            sasl::SCRAM_SHA_256_PLUS => has_scram_plus = true,
-            _ => {}
-        }
-    }
 
     let channel_binding = stream
         .inner
@@ -330,7 +367,64 @@ where
         .finish(body.data())
         .map_err(|e| Error::authentication(e.into()))?;
 
-    Ok(())
+    Ok(SaslProgress::Finished)
+}
+
+async fn authenticate_oauthbearer<S, T>(
+    stream: &mut StartupStream<S, T>,
+    config: &Config,
+) -> Result<SaslProgress, Error>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+    T: TlsStream + Unpin,
+{
+    // OAUTHBEARER defines no channel binding, so `channel_binding=require` cannot be satisfied
+    can_skip_channel_binding(config)?;
+
+    let token_provider = config
+        .token_provider
+        .as_ref()
+        .ok_or_else(|| Error::config("token provider missing".into()))?;
+
+    let token = token_provider
+        .get_token()
+        .await
+        .map_err(Error::authentication)?;
+
+    let mut buf = BytesMut::new();
+    frontend::sasl_initial_response(
+        sasl::OAUTHBEARER,
+        OAuthBearer::new(&token).message(),
+        &mut buf,
+    )
+    .map_err(Error::encode)?;
+    stream
+        .send(FrontendMessage::Raw(buf.freeze()))
+        .await
+        .map_err(Error::io)?;
+
+    match stream.try_next().await.map_err(Error::io)? {
+        // the token was accepted. OAUTHBEARER carries no additional data on success, so there is no
+        // `AuthenticationSASLFinal` message and this is the end of authentication
+        Some(Message::AuthenticationOk) => Ok(SaslProgress::Authenticated),
+        // the server only challenges when it has decided to fail the exchange; the challenge holds
+        // a JSON error document. RFC 7628, Sec. 3.2.3 requires a dummy response, and sending it is
+        // what gets the server to report the failure as an `ErrorResponse` the caller then reads
+        Some(Message::AuthenticationSaslContinue(_)) => {
+            let mut buf = BytesMut::new();
+            frontend::sasl_response(OAuthBearer::ERROR_RESPONSE, &mut buf)
+                .map_err(Error::encode)?;
+            stream
+                .send(FrontendMessage::Raw(buf.freeze()))
+                .await
+                .map_err(Error::io)?;
+
+            Ok(SaslProgress::Finished)
+        }
+        Some(Message::ErrorResponse(body)) => Err(Error::db(body)),
+        Some(_) => Err(Error::unexpected_message()),
+        None => Err(Error::closed()),
+    }
 }
 
 async fn read_info<S, T>(
