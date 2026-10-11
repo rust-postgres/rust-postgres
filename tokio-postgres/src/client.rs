@@ -29,7 +29,7 @@ use std::fmt;
 use std::future;
 #[cfg(feature = "runtime")]
 use std::net::IpAddr;
-#[cfg(feature = "runtime")]
+#[cfg(all(unix, feature = "runtime"))]
 use std::path::PathBuf;
 use std::pin::pin;
 use std::sync::Arc;
