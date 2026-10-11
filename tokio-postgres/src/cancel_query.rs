@@ -35,6 +35,7 @@ where
         config.port,
         config.connect_timeout,
         config.tcp_user_timeout,
+        #[cfg(not(target_arch = "wasm32"))]
         config.keepalive.as_ref(),
     )
     .await?;
