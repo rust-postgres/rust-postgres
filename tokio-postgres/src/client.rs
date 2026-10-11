@@ -93,6 +93,16 @@ pub struct InnerClient {
 }
 
 impl InnerClient {
+    #[cfg(test)]
+    pub(crate) fn new_for_test() -> InnerClient {
+        let (tx, _rx) = mpsc::unbounded();
+        InnerClient {
+            sender: tx,
+            cached_typeinfo: Default::default(),
+            buffer: Mutex::new(BytesMut::new()),
+        }
+    }
+
     pub fn send(&self, messages: RequestMessages) -> Result<Responses, Error> {
         let (sender, receiver) = mpsc::channel(1);
         let request = Request { messages, sender };
