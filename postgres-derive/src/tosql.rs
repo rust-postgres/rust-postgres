@@ -15,12 +15,16 @@ use crate::overrides::Overrides;
 pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
     let overrides = Overrides::extract(&input.attrs, true)?;
 
-    if (overrides.name.is_some() || overrides.rename_all.is_some()) && overrides.transparent {
+    if (overrides.name.is_some() || overrides.schema.is_some() || overrides.rename_all.is_some())
+        && overrides.transparent
+    {
         return Err(Error::new_spanned(
             &input,
-            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")] or #[postgres(rename_all = \"...\")]",
+            "#[postgres(transparent)] is not allowed with #[postgres(name = \"...\")], #[postgres(schema = \"...\")], or #[postgres(rename_all = \"...\")]",
         ));
     }
+
+    let schema: Option<&str> = overrides.schema.as_deref();
 
     let name = overrides
         .name
@@ -53,7 +57,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                     .map(|variant| Variant::parse(variant, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    accepts::enum_body(&name, &variants, overrides.allow_mismatch),
+                    accepts::enum_body(schema, &name, &variants, overrides.allow_mismatch),
                     enum_body(&input.ident, &variants),
                 )
             }
@@ -73,7 +77,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                     .map(|variant| Variant::parse(variant, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    accepts::enum_body(&name, &variants, overrides.allow_mismatch),
+                    accepts::enum_body(schema, &name, &variants, overrides.allow_mismatch),
                     enum_body(&input.ident, &variants),
                 )
             }
@@ -83,7 +87,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
             }) if fields.unnamed.len() == 1 => {
                 let field = fields.unnamed.first().unwrap();
 
-                (accepts::domain_body(&name, field), domain_body())
+                (accepts::domain_body(schema, &name, field), domain_body())
             }
             Data::Struct(DataStruct {
                 fields: Fields::Named(ref fields),
@@ -95,7 +99,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                     .map(|field| Field::parse(field, overrides.rename_all))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    accepts::composite_body(&name, "ToSql", &fields),
+                    accepts::composite_body(schema, &name, "ToSql", &fields),
                     composite_body(&fields),
                 )
             }

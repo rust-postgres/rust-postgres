@@ -5,6 +5,7 @@ use crate::case::{RENAME_RULES, RenameRule};
 
 pub struct Overrides {
     pub name: Option<String>,
+    pub schema: Option<String>,
     pub rename_all: Option<RenameRule>,
     pub transparent: bool,
     pub allow_mismatch: bool,
@@ -14,6 +15,7 @@ impl Overrides {
     pub fn extract(attrs: &[Attribute], container_attr: bool) -> Result<Overrides, Error> {
         let mut overrides = Overrides {
             name: None,
+            schema: None,
             rename_all: None,
             transparent: false,
             allow_mismatch: false,
@@ -34,16 +36,32 @@ impl Overrides {
             for item in nested {
                 match item {
                     Meta::NameValue(meta) => {
-                        let name_override = meta.path.is_ident("name");
-                        let rename_all_override = meta.path.is_ident("rename_all");
-                        if !container_attr && rename_all_override {
-                            return Err(Error::new_spanned(
-                                &meta.path,
-                                "rename_all is a container attribute",
-                            ));
+                        enum Key {
+                            Name,
+                            Schema,
+                            RenameAll,
                         }
-                        if !name_override && !rename_all_override {
+
+                        let key = if meta.path.is_ident("name") {
+                            Key::Name
+                        } else if meta.path.is_ident("schema") {
+                            Key::Schema
+                        } else if meta.path.is_ident("rename_all") {
+                            Key::RenameAll
+                        } else {
                             return Err(Error::new_spanned(&meta.path, "unknown override"));
+                        };
+
+                        if !container_attr {
+                            // None if the attr is permitted on non-containers
+                            let msg = match key {
+                                Key::Name => None,
+                                Key::Schema => Some("schema is a container attribute"),
+                                Key::RenameAll => Some("rename_all is a container attribute"),
+                            };
+                            if let Some(msg) = msg {
+                                return Err(Error::new_spanned(&meta.path, msg));
+                            }
                         }
 
                         let value = match &meta.value {
@@ -55,24 +73,31 @@ impl Overrides {
                             }
                         };
 
-                        if name_override {
-                            overrides.name = Some(value);
-                        } else if rename_all_override {
-                            let rename_rule = RenameRule::from_str(&value).ok_or_else(|| {
-                                Error::new_spanned(
-                                    &meta.value,
-                                    format!(
-                                        "invalid rename_all rule, expected one of: {}",
-                                        RENAME_RULES
-                                            .iter()
-                                            .map(|rule| format!("\"{rule}\""))
-                                            .collect::<Vec<_>>()
-                                            .join(", ")
-                                    ),
-                                )
-                            })?;
+                        match key {
+                            Key::Name => {
+                                overrides.name = Some(value);
+                            }
+                            Key::Schema => {
+                                overrides.schema = Some(value);
+                            }
+                            Key::RenameAll => {
+                                let rename_rule =
+                                    RenameRule::from_str(&value).ok_or_else(|| {
+                                        Error::new_spanned(
+                                            &meta.value,
+                                            format!(
+                                                "invalid rename_all rule, expected one of: {}",
+                                                RENAME_RULES
+                                                    .iter()
+                                                    .map(|rule| format!("\"{rule}\""))
+                                                    .collect::<Vec<_>>()
+                                                    .join(", ")
+                                            ),
+                                        )
+                                    })?;
 
-                            overrides.rename_all = Some(rename_rule);
+                                overrides.rename_all = Some(rename_rule);
+                            }
                         }
                     }
                     Meta::Path(path) => {
