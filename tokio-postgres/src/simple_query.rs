@@ -18,16 +18,23 @@ use std::task::{Context, Poll, ready};
 #[derive(Debug)]
 pub struct SimpleColumn {
     name: String,
+    /// PostgreSQL OID of the column's data type, as reported in RowDescription.
+    type_oid: u32,
 }
 
 impl SimpleColumn {
-    pub(crate) fn new(name: String) -> SimpleColumn {
-        SimpleColumn { name }
+    pub(crate) fn new(name: String, type_oid: u32) -> SimpleColumn {
+        SimpleColumn { name, type_oid }
     }
 
     /// Returns the name of the column.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns the PostgreSQL OID of the column's data type.
+    pub fn type_oid(&self) -> u32 {
+        self.type_oid
     }
 }
 
@@ -93,7 +100,7 @@ impl Stream for SimpleQueryStream {
             Message::RowDescription(body) => {
                 let columns: Arc<[SimpleColumn]> = body
                     .fields()
-                    .map(|f| Ok(SimpleColumn::new(f.name().to_string())))
+                    .map(|f| Ok(SimpleColumn::new(f.name().to_string(), f.type_oid())))
                     .collect::<Vec<_>>()
                     .map_err(Error::parse)?
                     .into();
