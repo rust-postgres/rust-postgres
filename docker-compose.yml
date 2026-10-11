@@ -8,3 +8,8 @@ services:
       - ./docker/sql_setup.sh:/docker-entrypoint-initdb.d/sql_setup.sh
     environment:
       POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -p 5433"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
