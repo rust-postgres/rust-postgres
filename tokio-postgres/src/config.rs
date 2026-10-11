@@ -369,7 +369,13 @@ impl Config {
     ///
     /// Multiple hosts can be specified by calling this method multiple times, and each will be tried in order. On Unix
     /// systems, a host starting with a `/` is interpreted as a path to a directory containing Unix domain sockets.
-    /// There must be either no hosts, or the same number of hosts as hostaddrs.
+    ///
+    /// On Unix systems, when [`connect`] is called an empty host string will be interpreted as `/run/postgresql` if
+    /// and only if the `hostaddr` vec is empty. This is done at connect time because at configure time we cannot be
+    /// sure that a `hostaddr` will not be added later, and doing so would force every connection to TCP where we want
+    /// to preserve the empty host name.
+    ///
+    /// If there are hostaddrs, then there must be either no hosts, or the same number of hosts as hostaddrs.
     pub fn host(&mut self, host: impl Into<String>) -> &mut Config {
         let host = host.into();
 
