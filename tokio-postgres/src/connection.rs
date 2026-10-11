@@ -29,6 +29,19 @@ pub struct Request {
 
 pub struct Response {
     sender: mpsc::Sender<BackendMessages>,
+    /// Frames the consumer's sender wasn't ready to accept when they
+    /// arrived from the wire. Kept per-response so an in-flight typeinfo
+    /// sub-query (whose response is queued behind the original query's
+    /// DataRows on the same socket) can be routed to a *different*
+    /// response while this one is congested. The `bool` tracks whether the
+    /// frame carries `ReadyForQuery` — once that has been *delivered* (not
+    /// just observed) the response is removed from the queue.
+    parked: VecDeque<(BackendMessages, bool)>,
+    /// Set true once a `ReadyForQuery` frame for this response has been
+    /// seen on the wire (whether or not it's been pushed to `sender` yet).
+    /// New wire frames after this point are routed to the *next*
+    /// in-flight response, not this one.
+    completion_seen: bool,
 }
 
 #[derive(PartialEq, Debug)]
@@ -92,6 +105,69 @@ where
             .map(|o| o.map(|r| r.map_err(Error::io)))
     }
 
+    /// Walk every in-flight response and try to flush its parked frames
+    /// into its sender. We poll each sender independently so a congested
+    /// response (e.g. a streaming query whose consumer is paused waiting
+    /// on a typeinfo lookup) doesn't block delivery to other responses
+    /// (e.g. that very typeinfo sub-query) — that's the whole point of
+    /// per-response parking. The waker registered by each `poll_ready`
+    /// will wake us back up when the corresponding consumer pulls.
+    fn drain_all_parked(&mut self, cx: &mut Context<'_>) {
+        // Track responses whose parked queue we exhausted *and* whose
+        // completion frame is among the delivered. They can be removed.
+        let mut idx = 0;
+        while idx < self.responses.len() {
+            let response = &mut self.responses[idx];
+            let mut remove = false;
+            while let Some((_, _)) = response.parked.front() {
+                match response.sender.poll_ready(cx) {
+                    Poll::Ready(Ok(())) => {
+                        let (messages, frame_complete) = response.parked.pop_front().unwrap();
+                        let _ = response.sender.start_send(messages);
+                        if frame_complete {
+                            // The completion frame just left for the
+                            // consumer — this response is finished from
+                            // the Connection's POV.
+                            remove = true;
+                            break;
+                        }
+                    }
+                    Poll::Ready(Err(_)) => {
+                        // Receiver hung up. Drain the rest of the parked
+                        // queue silently so the wire stays in sync, then
+                        // remove the response once we hit its completion
+                        // frame (or, if it's not yet seen, leave it as a
+                        // marker so subsequent wire frames are routed
+                        // correctly).
+                        let (_, frame_complete) = response.parked.pop_front().unwrap();
+                        if frame_complete {
+                            remove = true;
+                            break;
+                        }
+                    }
+                    Poll::Pending => break, // sender still backed up; try next response
+                }
+            }
+            if remove {
+                self.responses.remove(idx);
+            } else {
+                idx += 1;
+            }
+        }
+    }
+
+    /// Index of the response that the next wire frame belongs to. Frames
+    /// arrive in strict FIFO order per request, so the target is the first
+    /// response whose `ReadyForQuery` has *not* been observed yet. If a
+    /// response's completion frame is parked (sent but not yet delivered to
+    /// the consumer), it's still "done" from the wire's POV — the next
+    /// frame is for a later response.
+    fn target_response_idx(&self) -> Option<usize> {
+        self.responses
+            .iter()
+            .position(|r| !r.completion_seen)
+    }
+
     fn poll_read(&mut self, cx: &mut Context<'_>) -> Result<Option<AsyncMessage>, Error> {
         if self.state != State::Active {
             trace!("poll_read: done");
@@ -99,6 +175,10 @@ where
         }
 
         loop {
+            // Try to flush any backlog from a previous iteration before
+            // pulling new bytes off the wire.
+            self.drain_all_parked(cx);
+
             let message = match self.poll_response(cx)? {
                 Poll::Ready(Some(message)) => message,
                 Poll::Ready(None) => return Err(Error::closed()),
@@ -135,35 +215,51 @@ where
                 } => (messages, request_complete),
             };
 
-            let mut response = match self.responses.pop_front() {
-                Some(response) => response,
-                None => match messages.next().map_err(Error::parse)? {
-                    Some(Message::ErrorResponse(error)) => return Err(Error::db(error)),
-                    _ => return Err(Error::unexpected_message()),
-                },
+            let Some(target_idx) = self.target_response_idx() else {
+                // No in-flight request — only acceptable if the wire sent
+                // us an `ErrorResponse` to surface as a connection error.
+                return match messages.next().map_err(Error::parse)? {
+                    Some(Message::ErrorResponse(error)) => Err(Error::db(error)),
+                    _ => Err(Error::unexpected_message()),
+                };
             };
+
+            let response = &mut self.responses[target_idx];
+
+            if !response.parked.is_empty() {
+                // Must preserve protocol order: a later wire frame for the
+                // same response can't be sent before an earlier parked one.
+                if request_complete {
+                    response.completion_seen = true;
+                }
+                response.parked.push_back((messages, request_complete));
+                continue;
+            }
 
             match response.sender.poll_ready(cx) {
                 Poll::Ready(Ok(())) => {
                     let _ = response.sender.start_send(messages);
-                    if !request_complete {
-                        self.responses.push_front(response);
+                    if request_complete {
+                        // Completion frame delivered straight through to
+                        // the consumer — drop the response.
+                        self.responses.remove(target_idx);
                     }
                 }
                 Poll::Ready(Err(_)) => {
-                    // we need to keep paging through the rest of the messages even if the receiver's hung up
-                    if !request_complete {
-                        self.responses.push_front(response);
+                    if request_complete {
+                        self.responses.remove(target_idx);
                     }
                 }
                 Poll::Pending => {
-                    self.responses.push_front(response);
-                    self.pending_responses.push_back(BackendMessage::Normal {
-                        messages,
-                        request_complete,
-                    });
-                    trace!("poll_read: waiting on sender");
-                    return Ok(None);
+                    // Park this frame. New wire frames for *this* response
+                    // will continue to be parked (preserving order), while
+                    // frames for *later* responses can still be delivered
+                    // directly via `target_response_idx()`.
+                    if request_complete {
+                        response.completion_seen = true;
+                    }
+                    response.parked.push_back((messages, request_complete));
+                    trace!("poll_read: parking frame for congested response");
                 }
             }
         }
@@ -184,6 +280,8 @@ where
                 trace!("polled new request");
                 self.responses.push_back(Response {
                     sender: request.sender,
+                    parked: VecDeque::new(),
+                    completion_seen: false,
                 });
                 Poll::Ready(Some(request.messages))
             }
