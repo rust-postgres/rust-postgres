@@ -140,5 +140,23 @@ fn url() {
             .host_path("/var/lib/postgresql")
             .port(5432)
             .dbname("dbname"),
-    )
+    );
+    #[cfg(unix)]
+    check(
+        "postgresql:///dbname?host=%40pgdata",
+        Config::new().dbname("dbname").host_abstract("@pgdata"),
+    );
+    #[cfg(unix)]
+    check(
+        "postgresql://%40pgdata/dbname",
+        Config::new()
+            .host_abstract("@pgdata")
+            .port(5432)
+            .dbname("dbname"),
+    );
+    #[cfg(unix)]
+    check(
+        "host=@pgdata dbname=dbname",
+        Config::new().dbname("dbname").host_abstract("@pgdata"),
+    );
 }
