@@ -126,6 +126,22 @@ pub fn oid_from_sql(mut buf: &[u8]) -> Result<Oid, StdBox<dyn Error + Sync + Sen
     Ok(v)
 }
 
+/// Serializes an `OID8` value.
+#[inline]
+pub fn oid8_to_sql(v: u64, buf: &mut BytesMut) {
+    buf.put_u64(v);
+}
+
+/// Deserializes an `OID8` value.
+#[inline]
+pub fn oid8_from_sql(mut buf: &[u8]) -> Result<u64, StdBox<dyn Error + Sync + Send>> {
+    let v = buf.read_u64::<BigEndian>()?;
+    if !buf.is_empty() {
+        return Err("invalid buffer size".into());
+    }
+    Ok(v)
+}
+
 /// Serializes an `INT8` value.
 #[inline]
 pub fn int8_to_sql(v: i64, buf: &mut BytesMut) {

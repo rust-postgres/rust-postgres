@@ -138,6 +138,19 @@ async fn test_oid_params() {
 }
 
 #[tokio::test]
+async fn test_oid8_params() {
+    test_type(
+        "OID8",
+        &[
+            (Some(9_223_372_036_854_775_808u64), "'9223372036854775808'"),
+            (Some(10_000_000_000_000_000_000), "'10000000000000000000'"),
+            (None, "NULL"),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_i64_params() {
     test_type(
         "BIGINT",
