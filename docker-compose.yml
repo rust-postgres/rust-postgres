@@ -1,7 +1,7 @@
 version: '2'
 services:
   postgres:
-    image: docker.io/postgres:18
+    image: docker.io/postgres:19rc1
     ports:
       - 5433:5433
     volumes:

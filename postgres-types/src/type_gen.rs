@@ -198,6 +198,8 @@ pub enum Inner {
     TstzmultiRangeArray,
     DatemultiRangeArray,
     Int8multiRangeArray,
+    Oid8,
+    Oid8Array,
     Other(Arc<Other>),
 }
 
@@ -389,6 +391,8 @@ impl Inner {
             6153 => Some(Inner::TstzmultiRangeArray),
             6155 => Some(Inner::DatemultiRangeArray),
             6157 => Some(Inner::Int8multiRangeArray),
+            6437 => Some(Inner::Oid8),
+            6442 => Some(Inner::Oid8Array),
             _ => None,
         }
     }
@@ -580,6 +584,8 @@ impl Inner {
             Inner::TstzmultiRangeArray => 6153,
             Inner::DatemultiRangeArray => 6155,
             Inner::Int8multiRangeArray => 6157,
+            Inner::Oid8 => 6437,
+            Inner::Oid8Array => 6442,
             Inner::Other(ref u) => u.oid,
         }
     }
@@ -771,6 +777,8 @@ impl Inner {
             Inner::TstzmultiRangeArray => &Kind::Array(Type(Inner::TstzmultiRange)),
             Inner::DatemultiRangeArray => &Kind::Array(Type(Inner::DatemultiRange)),
             Inner::Int8multiRangeArray => &Kind::Array(Type(Inner::Int8multiRange)),
+            Inner::Oid8 => &Kind::Simple,
+            Inner::Oid8Array => &Kind::Array(Type(Inner::Oid8)),
             Inner::Other(ref u) => &u.kind,
         }
     }
@@ -962,6 +970,8 @@ impl Inner {
             Inner::TstzmultiRangeArray => "_tstzmultirange",
             Inner::DatemultiRangeArray => "_datemultirange",
             Inner::Int8multiRangeArray => "_int8multirange",
+            Inner::Oid8 => "oid8",
+            Inner::Oid8Array => "_oid8",
             Inner::Other(ref u) => &u.name,
         }
     }
@@ -1521,4 +1531,10 @@ impl Type {
 
     /// INT8MULTIRANGE&#91;&#93;
     pub const INT8MULTI_RANGE_ARRAY: Type = Type(Inner::Int8multiRangeArray);
+
+    /// OID8 - object identifier&#40;oid8&#41;, 8 bytes
+    pub const OID8: Type = Type(Inner::Oid8);
+
+    /// OID8&#91;&#93;
+    pub const OID8_ARRAY: Type = Type(Inner::Oid8Array);
 }
