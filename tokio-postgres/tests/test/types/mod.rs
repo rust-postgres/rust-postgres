@@ -583,6 +583,58 @@ async fn composite() {
 }
 
 #[tokio::test]
+async fn tuples() {
+    let client = connect("user=postgres").await;
+
+    let row = client.query_one("SELECT ROW()", &[]).await.unwrap();
+    row.get::<_, ()>(0);
+
+    let row = client.query_one("SELECT ROW(1)", &[]).await.unwrap();
+    let val: (i32,) = row.get(0);
+    assert_eq!(val, (1,));
+
+    let row = client.query_one("SELECT (1, 'a')", &[]).await.unwrap();
+    let val: (i32, String) = row.get(0);
+    assert_eq!(val, (1, "a".into()));
+
+    let row = client.query_one("SELECT (1, (2, 3))", &[]).await.unwrap();
+    let val: (i32, (i32, i32)) = row.get(0);
+    assert_eq!(val, (1, (2, 3)));
+
+    let row = client.query_one("SELECT (1, 2)", &[]).await.unwrap();
+    let err = row.try_get::<_, (i32, String)>(0).unwrap_err();
+    match err.source() {
+        Some(e) if e.is::<WrongType>() => {}
+        _ => panic!("Unexpected error {:?}", err),
+    };
+
+    let row = client.query_one("SELECT (1, 2, 3)", &[]).await.unwrap();
+    let err = row.try_get::<_, (i32, i32)>(0).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "error deserializing column 0: \
+        Postgres record field count does not match Rust tuple length: 3 vs 2"
+    );
+
+    client
+        .batch_execute(
+            "CREATE TYPE pg_temp.simple AS (
+                a int,
+                b text
+            )",
+        )
+        .await
+        .unwrap();
+
+    let row = client
+        .query_one("SELECT (1, 'a')::simple", &[])
+        .await
+        .unwrap();
+    let val: (i32, String) = row.get(0);
+    assert_eq!(val, (1, "a".into()));
+}
+
+#[tokio::test]
 async fn enum_() {
     let client = connect("user=postgres").await;
 
