@@ -1,4 +1,4 @@
-use crate::client::InnerClient;
+use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
@@ -72,6 +72,25 @@ pub async fn prepare(
         _ => return Err(Error::unexpected_message()),
     }
 
+    // The server now holds the statement `name`, and a prepared statement outlives a rolled-back
+    // transaction: when anything below fails, close it (dropping a `Statement` sends Close and
+    // Sync, which the server accepts in a failed transaction), or it stays on the connection
+    // until the connection ends.
+    match describe(client, &mut responses).await {
+        Ok((parameters, columns)) => Ok(Statement::new(client, name, parameters, columns)),
+        Err(e) => {
+            drop(Statement::new(client, name, vec![], vec![]));
+            Err(e)
+        }
+    }
+}
+
+/// The rest of the answer to a preparation after `ParseComplete`, read to its `ReadyForQuery`,
+/// and the types it names.
+async fn describe(
+    client: &Arc<InnerClient>,
+    responses: &mut Responses,
+) -> Result<(Vec<Type>, Vec<Column>), Error> {
     let parameter_description = match responses.next().await? {
         Message::ParameterDescription(body) => body,
         _ => return Err(Error::unexpected_message()),
@@ -82,6 +101,17 @@ pub async fn prepare(
         Message::NoData => None,
         _ => return Err(Error::unexpected_message()),
     };
+
+    // The answer to the Sync. The server can still raise an error here, after the description
+    // (a statement_timeout that fired between the Describe and the Sync), and that error has
+    // aborted the transaction: it must be returned, not dropped with the rest of the answer, or
+    // the caller sees a prepared statement and the next statement fails with "current
+    // transaction is aborted" instead. The server sends ReadyForQuery with the description
+    // (it flushes at the Sync), so reading it costs no round trip.
+    match responses.next().await? {
+        Message::ReadyForQuery(_) => {}
+        _ => return Err(Error::unexpected_message()),
+    }
 
     let mut parameters = vec![];
     let mut it = parameter_description.parameters();
@@ -106,7 +136,7 @@ pub async fn prepare(
         }
     }
 
-    Ok(Statement::new(client, name, parameters, columns))
+    Ok((parameters, columns))
 }
 
 fn prepare_rec<'a>(
@@ -149,6 +179,10 @@ pub(crate) async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type
         Some(row) => row,
         None => return Err(Error::unexpected_message()),
     };
+    // Read the answer to its ReadyForQuery (the type's OID is unique, so no other row comes): an
+    // error the server raises after the row (a statement_timeout) has aborted the transaction and
+    // must be returned, not dropped with the stream.
+    while rows.try_next().await?.is_some() {}
 
     let name: String = row.try_get(0)?;
     let type_: i8 = row.try_get(1)?;
