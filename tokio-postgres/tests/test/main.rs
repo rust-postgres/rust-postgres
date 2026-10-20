@@ -1360,3 +1360,157 @@ async fn query_scalar() {
         .unwrap();
     assert_eq!(age, Some(20));
 }
+
+/// Takes a value of any type as its bytes, to compare raw `DataRow` bodies with `Row`s.
+struct AnyBytes<'a>(&'a [u8]);
+
+impl<'a> tokio_postgres::types::FromSql<'a> for AnyBytes<'a> {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        Ok(AnyBytes(raw))
+    }
+
+    fn accepts(_: &Type) -> bool {
+        true
+    }
+}
+
+type RawRows = Vec<Vec<Option<Vec<u8>>>>;
+
+const RAW_ROW_QUERY: &str = "SELECT g, g::text || 'é', \
+     CASE WHEN g % 2 = 0 THEN NULL ELSE g * 1.5 END, ARRAY[g, NULL], ''::text \
+     FROM generate_series(1, 300) g";
+
+/// Every row of `stream` through `poll_next_body`, each field's bytes, and `rows_affected`.
+async fn raw_bodies(stream: tokio_postgres::RowStream) -> Result<(RawRows, Option<u64>), Error> {
+    use tokio_postgres::fallible_iterator::FallibleIterator;
+    let mut stream = pin!(stream);
+    let mut rows = vec![];
+    while let Some(body) = future::poll_fn(|cx| stream.as_mut().poll_next_body(cx))
+        .await
+        .transpose()?
+    {
+        let mut ranges = body.ranges();
+        let mut fields = vec![];
+        while let Some(range) = ranges.next().unwrap() {
+            fields.push(range.map(|r| body.buffer()[r].to_vec()));
+        }
+        assert_eq!(fields.len(), stream.columns().len());
+        rows.push(fields);
+    }
+    Ok((rows, stream.rows_affected()))
+}
+
+/// Every row of `stream` through `poll_next` (`Row`), each field's bytes, and `rows_affected`.
+async fn row_bytes(stream: tokio_postgres::RowStream) -> Result<(RawRows, Option<u64>), Error> {
+    let mut stream = pin!(stream);
+    let mut rows = vec![];
+    while let Some(row) = stream.try_next().await? {
+        rows.push(
+            (0..row.len())
+                .map(|i| row.get::<_, Option<AnyBytes<'_>>>(i).map(|b| b.0.to_vec()))
+                .collect(),
+        );
+    }
+    Ok((rows, stream.rows_affected()))
+}
+
+fn no_params() -> std::iter::Empty<&'static (dyn tokio_postgres::types::ToSql + Sync)> {
+    std::iter::empty()
+}
+
+#[tokio::test]
+async fn raw_row_bodies_equal_rows_prepared() {
+    let client = connect("user=postgres").await;
+    let stmt = client.prepare(RAW_ROW_QUERY).await.unwrap();
+
+    let stream = client.query_raw(&stmt, no_params()).await.unwrap();
+    let names: Vec<_> = stream
+        .columns()
+        .iter()
+        .map(|c| c.name().to_string())
+        .collect();
+    let types: Vec<_> = stream.columns().iter().map(|c| c.type_().clone()).collect();
+    assert_eq!(
+        names,
+        stmt.columns().iter().map(|c| c.name()).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        types,
+        stmt.columns()
+            .iter()
+            .map(|c| c.type_().clone())
+            .collect::<Vec<_>>()
+    );
+    let raw = raw_bodies(stream).await.unwrap();
+
+    let rows = row_bytes(client.query_raw(&stmt, no_params()).await.unwrap())
+        .await
+        .unwrap();
+    assert_eq!(raw.0.len(), 300);
+    assert_eq!(raw, rows);
+    assert_eq!(raw.1, Some(300));
+}
+
+#[tokio::test]
+async fn raw_row_bodies_equal_rows_typed() {
+    let client = connect("user=postgres").await;
+    let typed = || std::iter::empty::<(&(dyn tokio_postgres::types::ToSql + Sync), Type)>();
+
+    let raw = raw_bodies(
+        client
+            .query_typed_raw(RAW_ROW_QUERY, typed())
+            .await
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    let rows = row_bytes(
+        client
+            .query_typed_raw(RAW_ROW_QUERY, typed())
+            .await
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(raw.0.len(), 300);
+    assert_eq!(raw, rows);
+}
+
+#[tokio::test]
+async fn raw_row_bodies_and_rows_mix_on_one_stream() {
+    let client = connect("user=postgres").await;
+    let stream = client.query_raw(RAW_ROW_QUERY, no_params()).await.unwrap();
+    let mut stream = pin!(stream);
+    let (mut bodies, mut rows) = (0, 0);
+    loop {
+        let next = if (bodies + rows) % 2 == 0 {
+            future::poll_fn(|cx| stream.as_mut().poll_next_body(cx))
+                .await
+                .map(|b| b.map(|_| ()))
+        } else {
+            stream.try_next().await.transpose().map(|r| r.map(|_| ()))
+        };
+        match next {
+            None => break,
+            Some(Ok(())) if (bodies + rows) % 2 == 0 => bodies += 1,
+            Some(Ok(())) => rows += 1,
+            Some(Err(e)) => panic!("{e}"),
+        }
+    }
+    assert_eq!((bodies, rows), (150, 150));
+    assert_eq!(stream.rows_affected(), Some(300));
+}
+
+#[tokio::test]
+async fn raw_row_server_error_after_rows_ends_both_reads_alike() {
+    let client = connect("user=postgres").await;
+    let sql = "SELECT 10 / (3 - g) FROM generate_series(1, 5) g";
+
+    let raw = raw_bodies(client.query_raw(sql, no_params()).await.unwrap()).await;
+    let rows = row_bytes(client.query_raw(sql, no_params()).await.unwrap()).await;
+    let raw = raw.unwrap_err();
+    let rows = rows.unwrap_err();
+    assert_eq!(raw.code(), Some(&SqlState::DIVISION_BY_ZERO));
+    assert_eq!(raw.to_string(), rows.to_string());
+    assert_eq!(raw.code(), rows.code());
+}
