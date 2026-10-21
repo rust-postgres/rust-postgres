@@ -804,12 +804,12 @@ impl<'a> FromSql<'a> for SystemTime {
         let offset = Duration::new(secs, nsec as u32);
 
         let time = if negative {
-            epoch - offset
+            epoch.checked_sub(offset)
         } else {
-            epoch + offset
+            epoch.checked_add(offset)
         };
 
-        Ok(time)
+        time.ok_or_else(|| "value too large to decode".into())
     }
 
     accepts!(TIMESTAMP, TIMESTAMPTZ);
@@ -1242,13 +1242,13 @@ impl ToSql for SystemTime {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         let epoch = UNIX_EPOCH + Duration::from_secs(TIME_SEC_CONVERSION);
 
-        let to_usec =
-            |d: Duration| d.as_secs() * USEC_PER_SEC + u64::from(d.subsec_nanos()) / NSEC_PER_USEC;
-
         let time = match self.duration_since(epoch) {
-            Ok(duration) => to_usec(duration) as i64,
-            Err(e) => -(to_usec(e.duration()) as i64),
+            Ok(duration) => i64::try_from(duration.as_micros()).ok(),
+            Err(e) => u64::try_from(e.duration().as_micros())
+                .ok()
+                .and_then(|usec| 0i64.checked_sub_unsigned(usec)),
         };
+        let time = time.ok_or("value too large to transmit")?;
 
         types::timestamp_to_sql(time, w);
         Ok(IsNull::No)
@@ -1342,5 +1342,35 @@ where
     #[inline]
     fn borrow_to_sql(&self) -> &dyn ToSql {
         self
+    }
+}
+
+// Only a 64-bit `timespec` `SystemTime` spans the whole `i64` microsecond range.
+#[cfg(all(test, unix))]
+mod test {
+    use super::*;
+
+    fn round_trip(usec: i64) -> Vec<u8> {
+        let raw = usec.to_be_bytes();
+        let time = SystemTime::from_sql(&Type::TIMESTAMP, &raw).unwrap();
+        let mut buf = BytesMut::new();
+        time.to_sql(&Type::TIMESTAMP, &mut buf).unwrap();
+        buf.to_vec()
+    }
+
+    #[test]
+    fn system_time_round_trips_infinities() {
+        for usec in [i64::MIN, i64::MIN + 1, -1, 0, 1, i64::MAX] {
+            assert_eq!(round_trip(usec), usec.to_be_bytes());
+        }
+    }
+
+    #[test]
+    fn system_time_out_of_range_errors() {
+        let epoch = UNIX_EPOCH + Duration::from_secs(TIME_SEC_CONVERSION);
+        let beyond = Duration::from_micros(1 << 63);
+        for time in [epoch + beyond, epoch - beyond - Duration::from_micros(1)] {
+            assert!(time.to_sql(&Type::TIMESTAMP, &mut BytesMut::new()).is_err());
+        }
     }
 }
