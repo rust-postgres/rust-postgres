@@ -32,6 +32,12 @@ TLS support for postgres and tokio-postgres via native-tls.
 
 TLS support for postgres and tokio-postgres via openssl.
 
+## Related crates
+
+[`pg_named_args`](https://crates.io/crates/pg_named_args) enables one to use
+named arguments in queries. The provided macro converts the named arguments to
+positional arguments at compile time.
+
 # Running test suite
 
 The test suite requires postgres to be running in the correct configuration. The easiest way to do this is with docker:
