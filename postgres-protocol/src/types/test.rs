@@ -89,6 +89,16 @@ fn hstore_invalid_length() {
 }
 
 #[test]
+fn hstore_size_hint() {
+    let mut buf = BytesMut::new();
+    hstore_to_sql([("", None), ("", None)], &mut buf).unwrap();
+    assert_eq!(hstore_from_sql(&buf).unwrap().size_hint(), (2, Some(2)));
+
+    let buf = i32::MAX.to_be_bytes();
+    assert_eq!(hstore_from_sql(&buf).unwrap().size_hint(), (0, Some(0)));
+}
+
+#[test]
 fn varbit() {
     let len = 12;
     let bits = [0b0010_1011, 0b0000_1111];
@@ -172,6 +182,49 @@ fn non_null_array() {
     assert_eq!(array.element_type(), 10);
     assert_eq!(array.dimensions().collect::<Vec<_>>().unwrap(), dimensions);
     assert_eq!(array.values().collect::<Vec<_>>().unwrap(), values);
+}
+
+#[test]
+fn array_size_hint() {
+    let dimension = ArrayDimension {
+        len: 3,
+        lower_bound: 1,
+    };
+    let mut buf = BytesMut::new();
+    array_to_sql([dimension], 25, [(); 3], |(), _| Ok(IsNull::Yes), &mut buf).unwrap();
+    assert_eq!(
+        array_from_sql(&buf).unwrap().values().size_hint(),
+        (3, Some(3))
+    );
+
+    let mut buf = BytesMut::new();
+    buf.put_i32(1); // dimensions
+    buf.put_i32(0); // has nulls
+    buf.put_u32(25); // element type
+    buf.put_i32(i32::MAX); // dimension length
+    buf.put_i32(1); // lower bound
+    assert_eq!(
+        array_from_sql(&buf).unwrap().values().size_hint(),
+        (0, Some(0))
+    );
+}
+
+#[test]
+fn path_size_hint() {
+    let mut buf = BytesMut::new();
+    path_to_sql(true, [(0., 1.), (2., 3.)], &mut buf).unwrap();
+    assert_eq!(
+        path_from_sql(&buf).unwrap().points().size_hint(),
+        (2, Some(2))
+    );
+
+    let mut buf = BytesMut::new();
+    buf.put_u8(1); // closed
+    buf.put_i32(i32::MAX); // point count
+    assert_eq!(
+        path_from_sql(&buf).unwrap().points().size_hint(),
+        (0, Some(0))
+    );
 }
 
 #[test]
