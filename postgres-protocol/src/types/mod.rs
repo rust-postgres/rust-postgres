@@ -915,6 +915,10 @@ pub fn path_from_sql(mut buf: &[u8]) -> Result<Path<'_>, StdBox<dyn Error + Sync
     let closed = buf.read_u8()? != 0;
     let points = buf.read_i32::<BigEndian>()?;
 
+    if points < 0 {
+        return Err("invalid point count".into());
+    }
+
     Ok(Path {
         closed,
         points,
