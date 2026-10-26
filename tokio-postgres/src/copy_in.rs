@@ -18,11 +18,15 @@ use std::task::{Context, Poll, ready};
 
 enum CopyInMessage {
     Message(FrontendMessage),
+    /// Signals that the server has entered copy-in mode (`CopyInResponse`
+    /// received); only then is a trailing `CopyFail`+`Sync` needed on abort.
+    Started,
     Done,
 }
 
 pub struct CopyInReceiver {
     receiver: mpsc::Receiver<CopyInMessage>,
+    copy_started: bool,
     done: bool,
 }
 
@@ -30,6 +34,7 @@ impl CopyInReceiver {
     fn new(receiver: mpsc::Receiver<CopyInMessage>) -> CopyInReceiver {
         CopyInReceiver {
             receiver,
+            copy_started: false,
             done: false,
         }
     }
@@ -43,21 +48,32 @@ impl Stream for CopyInReceiver {
             return Poll::Ready(None);
         }
 
-        match ready!(self.receiver.poll_next_unpin(cx)) {
-            Some(CopyInMessage::Message(message)) => Poll::Ready(Some(message)),
-            Some(CopyInMessage::Done) => {
-                self.done = true;
-                let mut buf = BytesMut::new();
-                frontend::copy_done(&mut buf);
-                frontend::sync(&mut buf);
-                Poll::Ready(Some(FrontendMessage::Raw(buf.freeze())))
-            }
-            None => {
-                self.done = true;
-                let mut buf = BytesMut::new();
-                frontend::copy_fail("", &mut buf).unwrap();
-                frontend::sync(&mut buf);
-                Poll::Ready(Some(FrontendMessage::Raw(buf.freeze())))
+        loop {
+            match ready!(self.receiver.poll_next_unpin(cx)) {
+                Some(CopyInMessage::Message(message)) => return Poll::Ready(Some(message)),
+                Some(CopyInMessage::Started) => {
+                    self.copy_started = true;
+                }
+                Some(CopyInMessage::Done) => {
+                    self.done = true;
+                    let mut buf = BytesMut::new();
+                    frontend::copy_done(&mut buf);
+                    frontend::sync(&mut buf);
+                    return Poll::Ready(Some(FrontendMessage::Raw(buf.freeze())));
+                }
+                None => {
+                    self.done = true;
+                    // Without copy-in mode the exchange already ended with
+                    // ErrorResponse + ReadyForQuery; a trailing Sync here would
+                    // desynchronize the connection's response bookkeeping.
+                    if !self.copy_started {
+                        return Poll::Ready(None);
+                    }
+                    let mut buf = BytesMut::new();
+                    frontend::copy_fail("", &mut buf).unwrap();
+                    frontend::sync(&mut buf);
+                    return Poll::Ready(Some(FrontendMessage::Raw(buf.freeze())));
+                }
             }
         }
     }
@@ -214,6 +230,11 @@ where
         Message::CopyInResponse(_) => {}
         _ => return Err(Error::unexpected_message()),
     }
+
+    sender
+        .send(CopyInMessage::Started)
+        .await
+        .map_err(|_| Error::closed())?;
 
     Ok(CopyInSink {
         sender,

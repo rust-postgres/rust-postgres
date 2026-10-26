@@ -762,6 +762,38 @@ async fn copy_in_error() {
 }
 
 #[tokio::test]
+async fn copy_in_statement_error() {
+    let client = connect("user=postgres").await;
+
+    // The table does not exist, so the statement fails at the execute stage,
+    // before the server enters copy-in mode.
+    let err = match client
+        .copy_in::<_, Bytes>("COPY copy_in_statement_error FROM STDIN")
+        .await
+    {
+        Ok(_) => panic!("expected the copy to fail"),
+        Err(e) => e,
+    };
+    assert_eq!(
+        err.as_db_error().map(|e| e.code()),
+        Some(&SqlState::UNDEFINED_TABLE),
+    );
+
+    let row = client.query_one("SELECT 1", &[]).await.unwrap();
+    assert_eq!(row.get::<_, i32>(0), 1);
+
+    let rows = client.simple_query("SELECT 2").await.unwrap();
+    let row = rows
+        .iter()
+        .find_map(|m| match m {
+            SimpleQueryMessage::Row(row) => Some(row),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(row.get(0), Some("2"));
+}
+
+#[tokio::test]
 async fn copy_out() {
     let client = connect("user=postgres").await;
 
