@@ -19,23 +19,23 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 const TYPEINFO_QUERY: &str = "\
 SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, n.nspname, t.typrelid
 FROM pg_catalog.pg_type t
-LEFT OUTER JOIN pg_catalog.pg_range r ON r.rngtypid = t.oid
-INNER JOIN pg_catalog.pg_namespace n ON t.typnamespace = n.oid
-WHERE t.oid = $1
+LEFT OUTER JOIN pg_catalog.pg_range r ON r.rngtypid OPERATOR(pg_catalog.=) t.oid
+INNER JOIN pg_catalog.pg_namespace n ON t.typnamespace OPERATOR(pg_catalog.=) n.oid
+WHERE t.oid OPERATOR(pg_catalog.=) $1
 ";
 
 // Range types weren't added until Postgres 9.2, so pg_range may not exist
 const TYPEINFO_FALLBACK_QUERY: &str = "\
-SELECT t.typname, t.typtype, t.typelem, NULL::OID, t.typbasetype, n.nspname, t.typrelid
+SELECT t.typname, t.typtype, t.typelem, NULL::pg_catalog.oid, t.typbasetype, n.nspname, t.typrelid
 FROM pg_catalog.pg_type t
-INNER JOIN pg_catalog.pg_namespace n ON t.typnamespace = n.oid
-WHERE t.oid = $1
+INNER JOIN pg_catalog.pg_namespace n ON t.typnamespace OPERATOR(pg_catalog.=) n.oid
+WHERE t.oid OPERATOR(pg_catalog.=) $1
 ";
 
 const TYPEINFO_ENUM_QUERY: &str = "\
 SELECT enumlabel
 FROM pg_catalog.pg_enum
-WHERE enumtypid = $1
+WHERE enumtypid OPERATOR(pg_catalog.=) $1
 ORDER BY enumsortorder
 ";
 
@@ -43,16 +43,16 @@ ORDER BY enumsortorder
 const TYPEINFO_ENUM_FALLBACK_QUERY: &str = "\
 SELECT enumlabel
 FROM pg_catalog.pg_enum
-WHERE enumtypid = $1
+WHERE enumtypid OPERATOR(pg_catalog.=) $1
 ORDER BY oid
 ";
 
 const TYPEINFO_COMPOSITE_QUERY: &str = "\
 SELECT attname, atttypid
 FROM pg_catalog.pg_attribute
-WHERE attrelid = $1
+WHERE attrelid OPERATOR(pg_catalog.=) $1
 AND NOT attisdropped
-AND attnum > 0
+AND attnum OPERATOR(pg_catalog.>) 0
 ORDER BY attnum
 ";
 
