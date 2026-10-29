@@ -606,6 +606,50 @@ async fn enum_() {
 }
 
 #[tokio::test]
+async fn type_lookup_ignores_operators_ahead_of_pg_catalog() {
+    let client = connect("user=postgres").await;
+
+    // Operators that match nothing, in a schema the search path puts before pg_catalog, where an
+    // unqualified `=` or `>` in the type lookup queries would resolve to them.
+    client
+        .batch_execute(
+            "CREATE SCHEMA IF NOT EXISTS typeinfo_shadow;
+             CREATE OR REPLACE FUNCTION typeinfo_shadow.never(oid, oid) RETURNS bool LANGUAGE sql IMMUTABLE AS 'SELECT false';
+             CREATE OR REPLACE FUNCTION typeinfo_shadow.never(int2, int4) RETURNS bool LANGUAGE sql IMMUTABLE AS 'SELECT false';
+             DROP OPERATOR IF EXISTS typeinfo_shadow.= (oid, oid);
+             DROP OPERATOR IF EXISTS typeinfo_shadow.> (int2, int4);
+             CREATE OPERATOR typeinfo_shadow.= (LEFTARG = oid, RIGHTARG = oid, FUNCTION = typeinfo_shadow.never);
+             CREATE OPERATOR typeinfo_shadow.> (LEFTARG = int2, RIGHTARG = int4, FUNCTION = typeinfo_shadow.never);
+             SET search_path = typeinfo_shadow, pg_catalog;
+             CREATE TYPE pg_temp.shadowed_mood AS ENUM ('sad', 'ok');
+             CREATE TYPE pg_temp.shadowed_pair AS (a int4, b text);",
+        )
+        .await
+        .unwrap();
+
+    let stmt = client
+        .prepare("SELECT $1::pg_temp.shadowed_mood, $2::pg_temp.shadowed_pair")
+        .await
+        .unwrap();
+    match *stmt.params()[0].kind() {
+        Kind::Enum(ref variants) => assert_eq!(variants, &["sad".to_owned(), "ok".to_owned()]),
+        _ => panic!("bad type"),
+    }
+    match *stmt.params()[1].kind() {
+        Kind::Composite(ref fields) => {
+            let names: Vec<&str> = fields.iter().map(|f| f.name()).collect();
+            assert_eq!(names, ["a", "b"]);
+        }
+        _ => panic!("bad type"),
+    }
+
+    client
+        .batch_execute("RESET search_path; DROP SCHEMA typeinfo_shadow CASCADE")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn system_time() {
     test_type(
         "TIMESTAMP",
