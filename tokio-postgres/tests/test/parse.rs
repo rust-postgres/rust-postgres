@@ -142,3 +142,28 @@ fn url() {
             .dbname("dbname"),
     )
 }
+
+#[test]
+fn tcp_user_timeout_milliseconds() {
+    for value in [1, 15000, i32::MAX] {
+        let expected = Config::new()
+            .tcp_user_timeout(Duration::from_millis(value as u64))
+            .clone();
+        check(&format!("tcp_user_timeout={value}"), &expected);
+        check(
+            &format!("postgresql://?tcp_user_timeout={value}"),
+            &expected,
+        );
+    }
+}
+
+#[test]
+fn tcp_user_timeout_nonpositive() {
+    for value in [0, -1] {
+        check(&format!("tcp_user_timeout={value}"), &Config::new());
+        check(
+            &format!("postgresql://?tcp_user_timeout={value}"),
+            &Config::new(),
+        );
+    }
+}
