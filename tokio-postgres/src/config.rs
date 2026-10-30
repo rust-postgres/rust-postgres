@@ -149,7 +149,8 @@ pub enum Host {
 ///     omitted or the empty string.
 /// * `connect_timeout` - The time limit in seconds applied to each socket-level connection attempt. Note that hostnames
 ///     can resolve to multiple IP addresses, and this limit is applied to each address. Defaults to no timeout.
-/// * `tcp_user_timeout` - The time limit that transmitted data may remain unacknowledged before a connection is forcibly closed.
+/// * `tcp_user_timeout` - The time limit in milliseconds that transmitted data may remain unacknowledged before a
+///     connection is forcibly closed.
 ///     This is ignored for Unix domain socket connections. It is only supported on systems where TCP_USER_TIMEOUT is available
 ///     and will default to the system default if omitted or set to 0; on other systems, it has no effect.
 /// * `keepalives` - Controls the use of TCP keepalive. A value of 0 disables keepalive and nonzero integers enable it.
@@ -639,7 +640,7 @@ impl Config {
                     .parse::<i64>()
                     .map_err(|_| Error::config_parse(Box::new(InvalidValue("tcp_user_timeout"))))?;
                 if timeout > 0 {
-                    self.tcp_user_timeout(Duration::from_secs(timeout as u64));
+                    self.tcp_user_timeout(Duration::from_millis(timeout as u64));
                 }
             }
             #[cfg(not(target_arch = "wasm32"))]
