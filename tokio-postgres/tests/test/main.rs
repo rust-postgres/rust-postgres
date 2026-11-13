@@ -762,6 +762,70 @@ async fn copy_in_error() {
 }
 
 #[tokio::test]
+async fn copy_in_statement_error() {
+    let client = connect("user=postgres").await;
+
+    // The table is looked up at Execute, before the server enters copy-in mode.
+    match client
+        .copy_in::<_, Bytes>("COPY copy_in_statement_error FROM STDIN")
+        .await
+    {
+        Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_TABLE) => {}
+        Err(e) => panic!("unexpected error: {}", e),
+        Ok(_) => panic!("unexpected success"),
+    }
+
+    let row = client.query_one("SELECT 1", &[]).await.unwrap();
+    assert_eq!(row.get::<_, i32>(0), 1);
+}
+
+#[tokio::test]
+async fn copy_in_not_a_copy() {
+    let client = connect("user=postgres").await;
+
+    client.copy_in::<_, Bytes>("SELECT 1").await.err().unwrap();
+
+    let row = client.query_one("SELECT 2", &[]).await.unwrap();
+    assert_eq!(row.get::<_, i32>(0), 2);
+}
+
+#[tokio::test]
+async fn copy_in_dropped_before_copy_mode() {
+    let client = connect("user=postgres").await;
+    let locker = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "DROP TABLE IF EXISTS copy_in_dropped_before_copy_mode;
+             CREATE TABLE copy_in_dropped_before_copy_mode (id INTEGER)",
+        )
+        .await
+        .unwrap();
+    locker
+        .batch_execute("BEGIN; LOCK TABLE copy_in_dropped_before_copy_mode")
+        .await
+        .unwrap();
+
+    // The COPY waits on the lock, so the future is dropped before copy-in mode starts.
+    let copy = client.copy_in::<_, Bytes>("COPY copy_in_dropped_before_copy_mode FROM STDIN");
+    assert!(
+        time::timeout(Duration::from_millis(100), copy)
+            .await
+            .is_err()
+    );
+
+    locker.batch_execute("COMMIT").await.unwrap();
+
+    let row = client.query_one("SELECT 1", &[]).await.unwrap();
+    assert_eq!(row.get::<_, i32>(0), 1);
+
+    client
+        .batch_execute("DROP TABLE copy_in_dropped_before_copy_mode")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn copy_out() {
     let client = connect("user=postgres").await;
 

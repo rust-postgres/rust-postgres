@@ -194,7 +194,14 @@ where
 {
     debug!("executing copy in statement {}", statement.name());
 
-    let buf = query::encode(client, &statement, slice_iter(&[]))?;
+    // The only Sync goes out with CopyDone or CopyFail. A Sync here would get a second
+    // ReadyForQuery whenever the server refuses the statement before entering copy-in mode.
+    let buf = client.with_buf(|buf| {
+        query::encode_bind(&statement, slice_iter(&[]), "", buf)?;
+        frontend::execute("", 0, buf).map_err(Error::encode)?;
+        frontend::flush(buf);
+        Ok(buf.split().freeze())
+    })?;
 
     let (mut sender, receiver) = mpsc::channel(1);
     let receiver = CopyInReceiver::new(receiver);
