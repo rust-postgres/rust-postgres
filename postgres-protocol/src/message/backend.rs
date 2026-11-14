@@ -116,7 +116,6 @@ impl Message {
             return Ok(None);
         }
 
-        let tag = buf[0];
         let len = (&buf[1..5]).read_u32::<BigEndian>().unwrap();
 
         if len < 4 {
@@ -133,10 +132,52 @@ impl Message {
             return Ok(None);
         }
 
-        let mut buf = Buffer {
-            bytes: buf.split_to(total_len).freeze(),
-            idx: 5,
-        };
+        Self::parse_owned(buf.split_to(total_len).freeze()).map(Some)
+    }
+
+    /// Parses exactly one complete backend frame, retaining the caller's byte owner.
+    ///
+    /// Unlike copying into a `BytesMut`, slices stored in a parsed message retain
+    /// the original `Bytes` owner. This permits callers to use `Bytes::from_owner`
+    /// with an allocation that erases its initialized contents on final drop.
+    /// The frame includes the tag and length header; incomplete or trailing bytes
+    /// are rejected. The existing incremental `parse` API remains available.
+    #[inline]
+    pub fn parse_owned(bytes: Bytes) -> io::Result<Message> {
+        if bytes.len() < 5 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "incomplete message header",
+            ));
+        }
+        let tag = bytes[0];
+        let len = (&bytes[1..5]).read_u32::<BigEndian>().unwrap();
+        if len < 4 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid message length: parsing u32",
+            ));
+        }
+        let total_len = usize::try_from(len)
+            .ok()
+            .and_then(|n| n.checked_add(1))
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "message length exceeds address space",
+                )
+            })?;
+        if bytes.len() != total_len {
+            return Err(io::Error::new(
+                if bytes.len() < total_len {
+                    io::ErrorKind::UnexpectedEof
+                } else {
+                    io::ErrorKind::InvalidInput
+                },
+                "expected exactly one complete message frame",
+            ));
+        }
+        let mut buf = Buffer { bytes, idx: 5 };
 
         let message = match tag {
             PARSE_COMPLETE_TAG => Message::ParseComplete,
@@ -274,7 +315,7 @@ impl Message {
             ));
         }
 
-        Ok(Some(message))
+        Ok(message)
     }
 }
 
@@ -900,4 +941,57 @@ fn find_null(buf: &[u8], start: usize) -> io::Result<usize> {
 #[inline]
 fn get_str(buf: &[u8]) -> io::Result<&str> {
     str::from_utf8(buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn data_row() -> Vec<u8> {
+        // DataRow with one 3-byte column "abc".
+        let mut frame = vec![DATA_ROW_TAG, 0, 0, 0, 13, 0, 1, 0, 0, 0, 3];
+        frame.extend_from_slice(b"abc");
+        frame
+    }
+
+    #[test]
+    fn parse_owned_keeps_the_callers_bytes() {
+        let bytes = Bytes::from(data_row());
+        let base = bytes.as_ptr() as usize;
+        let Message::DataRow(row) = Message::parse_owned(bytes).unwrap() else {
+            panic!("expected DataRow");
+        };
+        let range = row.ranges().next().unwrap().unwrap().unwrap();
+        assert_eq!(&row.buffer()[range.clone()], b"abc");
+        let field = row.buffer_bytes().slice(range);
+        assert!(field.as_ptr() as usize >= base && (field.as_ptr() as usize) < base + 14);
+    }
+
+    #[test]
+    fn parse_owned_matches_parse() {
+        let mut buf = BytesMut::from(&data_row()[..]);
+        let Some(Message::DataRow(a)) = Message::parse(&mut buf).unwrap() else {
+            panic!("expected DataRow");
+        };
+        let Message::DataRow(b) = Message::parse_owned(Bytes::from(data_row())).unwrap() else {
+            panic!("expected DataRow");
+        };
+        assert_eq!(a.buffer(), b.buffer());
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn parse_owned_rejects_partial_and_trailing_frames() {
+        let frame = data_row();
+        let short = Message::parse_owned(Bytes::copy_from_slice(&frame[..frame.len() - 1]));
+        assert_eq!(short.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+        let header = Message::parse_owned(Bytes::copy_from_slice(&frame[..4]));
+        assert_eq!(header.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+        let mut long = frame;
+        long.push(b'Z');
+        let trailing = Message::parse_owned(Bytes::from(long));
+        assert_eq!(trailing.unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        let bad_len = Message::parse_owned(Bytes::from_static(&[b'Z', 0, 0, 0, 3]));
+        assert_eq!(bad_len.unwrap_err().kind(), io::ErrorKind::InvalidInput);
+    }
 }
