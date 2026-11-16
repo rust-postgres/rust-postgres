@@ -1,8 +1,11 @@
 use futures_util::{FutureExt, join};
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 use tokio::time;
 use tokio_postgres::error::SqlState;
-use tokio_postgres::{Client, NoTls};
+use tokio_postgres::tls::{MakeTlsConnect, NoTlsStream};
+use tokio_postgres::{Client, NoTls, Socket};
 
 async fn connect(s: &str) -> Client {
     let (client, connection) = tokio_postgres::connect(s, NoTls).await.unwrap();
@@ -84,6 +87,54 @@ async fn hostaddr_only_ok() {
     )
     .await
     .unwrap();
+}
+
+/// A connector that, like many TLS implementations, cannot be built for an empty server name.
+struct NamedOnlyTls;
+
+impl MakeTlsConnect<Socket> for NamedOnlyTls {
+    type Stream = NoTlsStream;
+    type TlsConnect = NoTls;
+    type Error = Box<dyn std::error::Error + Sync + Send>;
+
+    fn make_tls_connect(&mut self, domain: &str) -> Result<NoTls, Self::Error> {
+        if domain.is_empty() {
+            Err("invalid server name".into())
+        } else {
+            Ok(NoTls)
+        }
+    }
+}
+
+#[tokio::test]
+async fn hostaddr_only_prefer_without_server_tls() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    // A server that declines TLS, then reads the startup message.
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut ssl_request = [0; 8];
+        stream.read_exact(&mut ssl_request).await?;
+        assert_eq!(ssl_request, [0, 0, 0, 8, 0x04, 0xd2, 0x16, 0x2f]);
+        stream.write_all(b"N").await?;
+        let mut startup = [0; 8];
+        stream.read_exact(&mut startup).await?;
+        Ok::<_, std::io::Error>(startup[4..] == 196608u32.to_be_bytes())
+    });
+
+    // The server closes the connection after the startup message, so the connection fails.
+    let _ = tokio_postgres::connect(
+        &format!("hostaddr=127.0.0.1 port={port} user=postgres"),
+        NamedOnlyTls,
+    )
+    .await;
+
+    let sent_startup = server
+        .await
+        .unwrap()
+        .expect("the client sent no startup message");
+    assert!(sent_startup);
 }
 
 #[tokio::test]

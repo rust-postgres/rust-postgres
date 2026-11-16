@@ -11,7 +11,7 @@ pub async fn connect_tls<S, T>(
     mut stream: S,
     mode: SslMode,
     negotiation: SslNegotiation,
-    tls: T,
+    tls: Option<T>,
     has_hostname: bool,
 ) -> Result<MaybeTlsStream<S, T::Stream>, Error>
 where
@@ -20,7 +20,11 @@ where
 {
     match mode {
         SslMode::Disable => return Ok(MaybeTlsStream::Raw(stream)),
-        SslMode::Prefer if !tls.can_connect(ForcePrivateApi) => {
+        SslMode::Prefer
+            if tls
+                .as_ref()
+                .is_some_and(|tls| !tls.can_connect(ForcePrivateApi)) =>
+        {
             return Ok(MaybeTlsStream::Raw(stream));
         }
         SslMode::Prefer if negotiation == SslNegotiation::Direct => return Err(Error::tls(
@@ -47,9 +51,10 @@ where
         }
     }
 
-    if !has_hostname {
-        return Err(Error::tls("no hostname provided for TLS handshake".into()));
-    }
+    let tls = match tls {
+        Some(tls) if has_hostname => tls,
+        _ => return Err(Error::tls("no hostname provided for TLS handshake".into())),
+    };
 
     let stream = tls
         .connect(stream)

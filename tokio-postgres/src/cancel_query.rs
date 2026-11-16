@@ -1,7 +1,7 @@
 use crate::client::SocketConfig;
 use crate::config::{SslMode, SslNegotiation};
 use crate::tls::MakeTlsConnect;
-use crate::{Error, Socket, cancel_query_raw, connect_socket};
+use crate::{Error, Socket, cancel_query_raw, connect, connect_socket};
 use std::io;
 
 pub(crate) async fn cancel_query<T>(
@@ -25,9 +25,7 @@ where
         }
     };
 
-    let tls = tls
-        .make_tls_connect(config.hostname.as_deref().unwrap_or(""))
-        .map_err(|e| Error::tls(e.into()))?;
+    let tls = connect::make_tls_connect(&mut tls, config.hostname.as_deref())?;
     let has_hostname = config.hostname.is_some();
 
     let socket = connect_socket::connect_socket(
