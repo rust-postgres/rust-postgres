@@ -28,6 +28,7 @@ with-geo-types-0_6 = ["geo-types-06"]
 with-geo-types-0_7 = ["geo-types-0_7"]
 with-jiff-0_1 = ["jiff-01"]
 with-jiff-0_2 = ["jiff-02"]
+with-jiff-1 = ["jiff-1"]
 with-serde_json-1 = ["serde-1", "serde_json-1"]
 with-smol_str-01 = ["smol_str-01"]
 with-uuid-0_8 = ["uuid-08"]
@@ -61,6 +62,9 @@ jiff-01 = { version = "0.1", package = "jiff", default-features = false, feature
   "std",
 ], optional = true }
 jiff-02 = { version = "0.2", package = "jiff", default-features = false, features = [
+  "std",
+], optional = true }
+jiff-1 = { version = "1.0", package = "jiff", default-features = false, features = [
   "std",
 ], optional = true }
 serde-1 = { version = "1.0.221", package = "serde_core", optional = true }
