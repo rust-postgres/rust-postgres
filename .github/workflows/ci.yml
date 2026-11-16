@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown,wasm32-wasip2
       - run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
         id: rust-version
       - uses: actions/cache@v4
@@ -78,6 +78,9 @@ jobs:
       - run: cargo check --target wasm32-unknown-unknown --manifest-path tokio-postgres/Cargo.toml --no-default-features --features js
         env:
           RUSTFLAGS: --cfg getrandom_backend="wasm_js"
+      - run: cargo check --target wasm32-wasip2 --manifest-path tokio-postgres/Cargo.toml --features runtime
+        env:
+          RUSTFLAGS: -Dwarnings --cfg tokio_unstable
 
   test:
     name: test

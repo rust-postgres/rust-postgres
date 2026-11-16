@@ -7,7 +7,7 @@ use crate::Socket;
 #[cfg(feature = "runtime")]
 use crate::connect::connect;
 use crate::connect_raw::connect_raw;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
 use crate::keepalive::KeepaliveConfig;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
@@ -230,7 +230,7 @@ pub struct Config {
     pub(crate) connect_timeout: Option<Duration>,
     pub(crate) tcp_user_timeout: Option<Duration>,
     pub(crate) keepalives: bool,
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
     pub(crate) keepalive_config: KeepaliveConfig,
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
@@ -260,7 +260,7 @@ impl Config {
             connect_timeout: None,
             tcp_user_timeout: None,
             keepalives: true,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
             keepalive_config: KeepaliveConfig {
                 idle: Duration::from_secs(2 * 60 * 60),
                 interval: None,
@@ -477,7 +477,7 @@ impl Config {
     /// Sets the amount of idle time before a keepalive packet is sent on the connection.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled. Defaults to 2 hours.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
     pub fn keepalives_idle(&mut self, keepalives_idle: Duration) -> &mut Config {
         self.keepalive_config.idle = keepalives_idle;
         self
@@ -485,7 +485,7 @@ impl Config {
 
     /// Gets the configured amount of idle time before a keepalive packet will
     /// be sent on the connection.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
     pub fn get_keepalives_idle(&self) -> Duration {
         self.keepalive_config.idle
     }
@@ -494,14 +494,14 @@ impl Config {
     /// On Windows, this sets the value of the tcp_keepalive struct’s keepaliveinterval field.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
     pub fn keepalives_interval(&mut self, keepalives_interval: Duration) -> &mut Config {
         self.keepalive_config.interval = Some(keepalives_interval);
         self
     }
 
     /// Gets the time interval between TCP keepalive probes.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
     pub fn get_keepalives_interval(&self) -> Option<Duration> {
         self.keepalive_config.interval
     }
@@ -509,14 +509,14 @@ impl Config {
     /// Sets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
     ///
     /// This is ignored for Unix domain sockets, or if the `keepalives` option is disabled.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
     pub fn keepalives_retries(&mut self, keepalives_retries: u32) -> &mut Config {
         self.keepalive_config.retries = Some(keepalives_retries);
         self
     }
 
     /// Gets the maximum number of TCP keepalive probes that will be sent before dropping a connection.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
     pub fn get_keepalives_retries(&self) -> Option<u32> {
         self.keepalive_config.retries
     }
@@ -642,14 +642,14 @@ impl Config {
                     self.tcp_user_timeout(Duration::from_secs(timeout as u64));
                 }
             }
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
             "keepalives" => {
                 let keepalives = value
                     .parse::<u64>()
                     .map_err(|_| Error::config_parse(Box::new(InvalidValue("keepalives"))))?;
                 self.keepalives(keepalives != 0);
             }
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
             "keepalives_idle" => {
                 let keepalives_idle = value
                     .parse::<i64>()
@@ -658,7 +658,7 @@ impl Config {
                     self.keepalives_idle(Duration::from_secs(keepalives_idle as u64));
                 }
             }
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
             "keepalives_interval" => {
                 let keepalives_interval = value.parse::<i64>().map_err(|_| {
                     Error::config_parse(Box::new(InvalidValue("keepalives_interval")))
@@ -667,7 +667,7 @@ impl Config {
                     self.keepalives_interval(Duration::from_secs(keepalives_interval as u64));
                 }
             }
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
             "keepalives_retries" => {
                 let keepalives_retries = value.parse::<u32>().map_err(|_| {
                     Error::config_parse(Box::new(InvalidValue("keepalives_retries")))
@@ -785,7 +785,7 @@ impl fmt::Debug for Config {
             .field("tcp_user_timeout", &self.tcp_user_timeout)
             .field("keepalives", &self.keepalives);
 
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
         {
             config_dbg = config_dbg
                 .field("keepalives_idle", &self.keepalive_config.idle)
