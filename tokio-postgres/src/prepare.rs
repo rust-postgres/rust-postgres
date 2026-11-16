@@ -2,9 +2,9 @@ use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::error::SqlState;
+use crate::query;
 use crate::types::{Field, Kind, Oid, Type};
-use crate::{Column, Error, Statement};
-use crate::{query, slice_iter};
+use crate::{Column, Error, Row, Statement};
 use bytes::Bytes;
 use fallible_iterator::FallibleIterator;
 use futures_util::TryStreamExt;
@@ -12,7 +12,7 @@ use log::debug;
 use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::future::Future;
-use std::pin::{Pin, pin};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -109,14 +109,6 @@ pub async fn prepare(
     Ok(Statement::new(client, name, parameters, columns))
 }
 
-fn prepare_rec<'a>(
-    client: &'a Arc<InnerClient>,
-    query: &'a str,
-    types: &'a [Type],
-) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send>> {
-    Box::pin(prepare(client, query, types))
-}
-
 fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
     if types.is_empty() {
         debug!("preparing query {name}: {query}");
@@ -141,11 +133,14 @@ pub(crate) async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type
         return Ok(type_);
     }
 
-    let stmt = typeinfo_statement(client).await?;
+    let rows = match typeinfo_query(client, TYPEINFO_QUERY, oid).await {
+        Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_TABLE) => {
+            typeinfo_query(client, TYPEINFO_FALLBACK_QUERY, oid).await?
+        }
+        rows => rows?,
+    };
 
-    let mut rows = pin!(query::query(client, stmt, slice_iter(&[&oid])).await?);
-
-    let row = match rows.try_next().await? {
+    let row = match rows.first() {
         Some(row) => row,
         None => return Err(Error::unexpected_message()),
     };
@@ -192,57 +187,36 @@ fn get_type_rec<'a>(
     Box::pin(get_type(client, oid))
 }
 
-async fn typeinfo_statement(client: &Arc<InnerClient>) -> Result<Statement, Error> {
-    if let Some(stmt) = client.typeinfo() {
-        return Ok(stmt);
-    }
-
-    let stmt = match prepare_rec(client, TYPEINFO_QUERY, &[]).await {
-        Ok(stmt) => stmt,
-        Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_TABLE) => {
-            prepare_rec(client, TYPEINFO_FALLBACK_QUERY, &[]).await?
-        }
-        Err(e) => return Err(e),
-    };
-
-    client.set_typeinfo(&stmt);
-    Ok(stmt)
+/// Runs one of the type lookup queries as an unnamed statement, in one round trip, and reads all
+/// of its rows before any further lookup is sent.
+///
+/// Boxed because `query_typed` resolves its columns' types through `get_type`.
+fn typeinfo_query<'a>(
+    client: &'a Arc<InnerClient>,
+    query: &'a str,
+    oid: Oid,
+) -> Pin<Box<dyn Future<Output = Result<Vec<Row>, Error>> + Send + 'a>> {
+    Box::pin(async move {
+        query::query_typed(client, query, [(oid, Type::OID)])
+            .await?
+            .try_collect()
+            .await
+    })
 }
 
 async fn get_enum_variants(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<String>, Error> {
-    let stmt = typeinfo_enum_statement(client).await?;
-
-    query::query(client, stmt, slice_iter(&[&oid]))
-        .await?
-        .and_then(|row| async move { row.try_get(0) })
-        .try_collect()
-        .await
-}
-
-async fn typeinfo_enum_statement(client: &Arc<InnerClient>) -> Result<Statement, Error> {
-    if let Some(stmt) = client.typeinfo_enum() {
-        return Ok(stmt);
-    }
-
-    let stmt = match prepare_rec(client, TYPEINFO_ENUM_QUERY, &[]).await {
-        Ok(stmt) => stmt,
+    let rows = match typeinfo_query(client, TYPEINFO_ENUM_QUERY, oid).await {
         Err(ref e) if e.code() == Some(&SqlState::UNDEFINED_COLUMN) => {
-            prepare_rec(client, TYPEINFO_ENUM_FALLBACK_QUERY, &[]).await?
+            typeinfo_query(client, TYPEINFO_ENUM_FALLBACK_QUERY, oid).await?
         }
-        Err(e) => return Err(e),
+        rows => rows?,
     };
 
-    client.set_typeinfo_enum(&stmt);
-    Ok(stmt)
+    rows.iter().map(|row| row.try_get(0)).collect()
 }
 
 async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec<Field>, Error> {
-    let stmt = typeinfo_composite_statement(client).await?;
-
-    let rows = query::query(client, stmt, slice_iter(&[&oid]))
-        .await?
-        .try_collect::<Vec<_>>()
-        .await?;
+    let rows = typeinfo_query(client, TYPEINFO_COMPOSITE_QUERY, oid).await?;
 
     let mut fields = vec![];
     for row in rows {
@@ -253,15 +227,4 @@ async fn get_composite_fields(client: &Arc<InnerClient>, oid: Oid) -> Result<Vec
     }
 
     Ok(fields)
-}
-
-async fn typeinfo_composite_statement(client: &Arc<InnerClient>) -> Result<Statement, Error> {
-    if let Some(stmt) = client.typeinfo_composite() {
-        return Ok(stmt);
-    }
-
-    let stmt = prepare_rec(client, TYPEINFO_COMPOSITE_QUERY, &[]).await?;
-
-    client.set_typeinfo_composite(&stmt);
-    Ok(stmt)
 }

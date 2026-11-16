@@ -650,6 +650,42 @@ async fn type_lookup_ignores_operators_ahead_of_pg_catalog() {
 }
 
 #[tokio::test]
+async fn type_lookup_leaves_no_prepared_statements() {
+    let client = connect("user=postgres").await;
+
+    client
+        .batch_execute(
+            "CREATE TYPE pg_temp.lookup_mood AS ENUM ('sad', 'ok');
+             CREATE TYPE pg_temp.lookup_pair AS (a int4, b pg_temp.lookup_mood);",
+        )
+        .await
+        .unwrap();
+
+    let stmt = client
+        .prepare("SELECT $1::pg_temp.lookup_pair")
+        .await
+        .unwrap();
+    match *stmt.params()[0].kind() {
+        Kind::Composite(ref fields) => match *fields[1].type_().kind() {
+            Kind::Enum(ref variants) => assert_eq!(variants, &["sad".to_owned(), "ok".to_owned()]),
+            _ => panic!("bad type"),
+        },
+        _ => panic!("bad type"),
+    }
+
+    // Only the statement prepared above is left on the server.
+    let rows = client
+        .query_typed(
+            "SELECT statement FROM pg_catalog.pg_prepared_statements",
+            &[],
+        )
+        .await
+        .unwrap();
+    let statements: Vec<&str> = rows.iter().map(|row| row.get(0)).collect();
+    assert_eq!(statements, ["SELECT $1::pg_temp.lookup_pair"]);
+}
+
+#[tokio::test]
 async fn system_time() {
     test_type(
         "TIMESTAMP",
