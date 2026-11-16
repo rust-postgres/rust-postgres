@@ -288,6 +288,8 @@ mod geo_types_07;
 mod jiff_01;
 #[cfg(feature = "with-jiff-0_2")]
 mod jiff_02;
+#[cfg(feature = "with-jiff-1")]
+mod jiff_1;
 #[cfg(feature = "with-serde_json-1")]
 mod serde_json_1;
 #[cfg(feature = "with-smol_str-01")]
