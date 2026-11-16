@@ -170,7 +170,7 @@ mod copy_in;
 mod copy_out;
 pub mod error;
 mod generic_client;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), target_env = "p2"))]
 mod keepalive;
 mod maybe_tls_stream;
 mod portal;

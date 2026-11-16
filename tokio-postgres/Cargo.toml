@@ -68,7 +68,7 @@ tokio-util = { version = "0.7", features = ["codec"] }
 rand = "0.10.0"
 whoami = "2.0.1"
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(any(not(target_arch = "wasm32"), target_env = "p2"))'.dependencies]
 socket2 = { version = "0.6", features = ["all"] }
 
 [dev-dependencies]

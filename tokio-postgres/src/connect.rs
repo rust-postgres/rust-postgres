@@ -10,6 +10,7 @@ use std::future::{self, Future};
 use std::pin::pin;
 use std::task::Poll;
 use std::{cmp, io};
+#[cfg(not(all(target_os = "wasi", target_env = "p2")))]
 use tokio::net;
 
 pub async fn connect<T>(
@@ -97,6 +98,13 @@ where
 {
     match host {
         Host::Tcp(host) => {
+            // tokio's `lookup_host` runs on the blocking thread pool, which wasip2 does not
+            // have; the standard library resolves through `wasi:sockets/ip-name-lookup` instead.
+            #[cfg(all(target_os = "wasi", target_env = "p2"))]
+            let mut addrs = std::net::ToSocketAddrs::to_socket_addrs(&(&*host, port))
+                .map_err(Error::connect)?
+                .collect::<Vec<_>>();
+            #[cfg(not(all(target_os = "wasi", target_env = "p2")))]
             let mut addrs = net::lookup_host((&*host, port))
                 .await
                 .map_err(Error::connect)?
