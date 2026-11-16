@@ -133,6 +133,27 @@ where
     }
 }
 
+/// Builds the TLS connector for a connection attempt.
+///
+/// Without a hostname no TLS handshake takes place, so a connector that cannot be built for an
+/// empty server name is not an error: the connection can still proceed without TLS under
+/// `sslmode=prefer` if the server does not offer it.
+pub(crate) fn make_tls_connect<T>(
+    tls: &mut T,
+    hostname: Option<&str>,
+) -> Result<Option<T::TlsConnect>, Error>
+where
+    T: MakeTlsConnect<Socket>,
+{
+    match hostname {
+        Some(hostname) => tls
+            .make_tls_connect(hostname)
+            .map(Some)
+            .map_err(|e| Error::tls(e.into())),
+        None => Ok(tls.make_tls_connect("").ok()),
+    }
+}
+
 async fn connect_once<T>(
     addr: Addr,
     hostname: Option<&str>,
@@ -156,9 +177,7 @@ where
     )
     .await?;
 
-    let tls = tls
-        .make_tls_connect(hostname.unwrap_or(""))
-        .map_err(|e| Error::tls(e.into()))?;
+    let tls = make_tls_connect(tls, hostname)?;
     let has_hostname = hostname.is_some();
     let (mut client, mut connection) = connect_raw(socket, tls, has_hostname, config).await?;
 

@@ -9,7 +9,7 @@ pub async fn cancel_query_raw<S, T>(
     stream: S,
     mode: SslMode,
     negotiation: SslNegotiation,
-    tls: T,
+    tls: Option<T>,
     has_hostname: bool,
     process_id: i32,
     secret_key: i32,
