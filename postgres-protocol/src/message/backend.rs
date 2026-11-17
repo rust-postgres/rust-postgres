@@ -954,6 +954,14 @@ mod tests {
         frame
     }
 
+    // `Message` does not implement `Debug`, so `Result::unwrap_err` is unavailable.
+    fn error_kind(result: io::Result<Message>) -> io::ErrorKind {
+        match result {
+            Ok(_) => panic!("expected parse_owned to fail"),
+            Err(e) => e.kind(),
+        }
+    }
+
     #[test]
     fn parse_owned_keeps_the_callers_bytes() {
         let bytes = Bytes::from(data_row());
@@ -984,14 +992,14 @@ mod tests {
     fn parse_owned_rejects_partial_and_trailing_frames() {
         let frame = data_row();
         let short = Message::parse_owned(Bytes::copy_from_slice(&frame[..frame.len() - 1]));
-        assert_eq!(short.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+        assert_eq!(error_kind(short), io::ErrorKind::UnexpectedEof);
         let header = Message::parse_owned(Bytes::copy_from_slice(&frame[..4]));
-        assert_eq!(header.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+        assert_eq!(error_kind(header), io::ErrorKind::UnexpectedEof);
         let mut long = frame;
         long.push(b'Z');
         let trailing = Message::parse_owned(Bytes::from(long));
-        assert_eq!(trailing.unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(error_kind(trailing), io::ErrorKind::InvalidInput);
         let bad_len = Message::parse_owned(Bytes::from_static(&[b'Z', 0, 0, 0, 3]));
-        assert_eq!(bad_len.unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(error_kind(bad_len), io::ErrorKind::InvalidInput);
     }
 }
