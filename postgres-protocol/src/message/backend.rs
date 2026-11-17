@@ -972,7 +972,7 @@ mod tests {
         let range = row.ranges().next().unwrap().unwrap().unwrap();
         assert_eq!(&row.buffer()[range.clone()], b"abc");
         let field = row.buffer_bytes().slice(range);
-        assert!(field.as_ptr() as usize >= base && (field.as_ptr() as usize) < base + 14);
+        assert!((base..base + 14).contains(&(field.as_ptr() as usize)));
     }
 
     #[test]
