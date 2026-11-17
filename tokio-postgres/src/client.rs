@@ -731,8 +731,8 @@ impl Client {
 
     /// Attempts to cancel an in-progress query.
     ///
-    /// The server provides no information about whether a cancellation attempt was successful or not. An error will
-    /// only be returned if the client was unable to connect to the database.
+    /// This method waits for the server to close the cancellation connection. The server does not report whether
+    /// the request actually canceled a query.
     ///
     /// Requires the `runtime` Cargo feature (enabled by default).
     #[cfg(feature = "runtime")]
