@@ -55,3 +55,11 @@ pub fn test_type_asymmetric<T, F, S, C>(
 fn compile_fail() {
     trybuild::TestCases::new().compile_fail("src/compile-fail/*.rs");
 }
+
+#[test]
+fn from_row() {
+    let tests = trybuild::TestCases::new();
+    tests.pass("src/from_row/pass/*.rs");
+    // Capturing compiler diagnostics with `TRYBUILD=overwrite cargo +1.85.0 test -p postgres-derive-test from_row`.
+    tests.compile_fail("src/from_row/fail/*.rs");
+}

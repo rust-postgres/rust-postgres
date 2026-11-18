@@ -10,10 +10,10 @@ use crate::accepts;
 use crate::composites::Field;
 use crate::composites::{append_generic_bound, new_derive_path};
 use crate::enums::Variant;
-use crate::overrides::Overrides;
+use crate::overrides::{Derive, Overrides};
 
 pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
-    let overrides = Overrides::extract(&input.attrs, true)?;
+    let overrides = Overrides::extract(&input.attrs, true, Derive::Sql)?;
 
     if (overrides.name.is_some() || overrides.rename_all.is_some()) && overrides.transparent {
         return Err(Error::new_spanned(
@@ -92,7 +92,7 @@ pub fn expand_derive_tosql(input: DeriveInput) -> Result<TokenStream, Error> {
                 let fields = fields
                     .named
                     .iter()
-                    .map(|field| Field::parse(field, overrides.rename_all))
+                    .map(|field| Field::parse(field, overrides.rename_all, Derive::Sql))
                     .collect::<Result<Vec<_>, _>>()?;
                 (
                     accepts::composite_body(&name, "ToSql", &fields),

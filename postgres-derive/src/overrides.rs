@@ -3,6 +3,14 @@ use syn::{Attribute, Error, Expr, ExprLit, Lit, Meta, Token};
 
 use crate::case::{RENAME_RULES, RenameRule};
 
+/// Attribute grammar: row mappings accept names; SQL type derives also accept type options.
+pub enum Derive {
+    Sql,
+    #[cfg(feature = "from-row")]
+    Row,
+}
+
+/// Parsed `#[postgres(...)]` values shared by the derive implementations.
 pub struct Overrides {
     pub name: Option<String>,
     pub rename_all: Option<RenameRule>,
@@ -11,7 +19,11 @@ pub struct Overrides {
 }
 
 impl Overrides {
-    pub fn extract(attrs: &[Attribute], container_attr: bool) -> Result<Overrides, Error> {
+    pub fn extract(
+        attrs: &[Attribute],
+        container_attr: bool,
+        derive: Derive,
+    ) -> Result<Overrides, Error> {
         let mut overrides = Overrides {
             name: None,
             rename_all: None,
@@ -75,7 +87,7 @@ impl Overrides {
                             overrides.rename_all = Some(rename_rule);
                         }
                     }
-                    Meta::Path(path) => {
+                    Meta::Path(path) if matches!(derive, Derive::Sql) => {
                         if path.is_ident("transparent") {
                             if overrides.allow_mismatch {
                                 return Err(Error::new_spanned(
