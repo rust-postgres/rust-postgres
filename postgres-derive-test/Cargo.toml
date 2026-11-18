@@ -8,5 +8,7 @@ rust-version = "1.85"
 [dev-dependencies]
 trybuild = "1.0.18"
 
+# Using a Rust keyword as the dependency alias to exercise derive path hygiene.
+type = { version = "0.7.18", package = "tokio-postgres", default-features = false, features = ["derive"], path = "../tokio-postgres" }
 postgres-types = { path = "../postgres-types", features = ["derive"] }
 postgres = { path = "../postgres" }

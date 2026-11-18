@@ -19,6 +19,8 @@ use tokio_postgres::{
 };
 
 mod binary_copy;
+#[cfg(feature = "derive")]
+mod from_row;
 mod parse;
 #[cfg(feature = "runtime")]
 mod runtime;

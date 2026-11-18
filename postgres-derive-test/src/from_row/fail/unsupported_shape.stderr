@@ -1,0 +1,27 @@
+error: #[derive(FromRow)] may only be applied to structs with named fields
+ --> src/from_row/fail/unsupported_shape.rs:4:1
+  |
+4 | struct User(i64);
+  | ^^^^^^^^^^^^^^^^^
+
+error: #[derive(FromRow)] may only be applied to structs with named fields
+ --> src/from_row/fail/unsupported_shape.rs:7:1
+  |
+7 | struct Unit;
+  | ^^^^^^^^^^^^
+
+error: #[derive(FromRow)] may only be applied to structs with named fields
+  --> src/from_row/fail/unsupported_shape.rs:10:1
+   |
+10 | / enum Enumeration {
+11 | |     Value { id: i32 },
+12 | | }
+   | |_^
+
+error: #[derive(FromRow)] may only be applied to structs with named fields
+  --> src/from_row/fail/unsupported_shape.rs:15:1
+   |
+15 | / union Union {
+16 | |     id: i32,
+17 | | }
+   | |_^

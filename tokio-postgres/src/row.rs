@@ -95,6 +95,21 @@ where
     }
 }
 
+/// A type that can be built from a query row.
+///
+/// Implementations typically decode fields with [`Row::try_get`], preserving each column's
+/// [`FromSql`] behavior. The `derive` feature provides an implementation for structs with named
+/// fields through `#[derive(FromRow)]`.
+///
+/// The returned value may borrow from the row for `'a`.
+pub trait FromRow<'a>: Sized {
+    /// Builds `Self` from a query row.
+    ///
+    /// Implementations can propagate column errors from [`Row::try_get`]. A field's [`FromSql`]
+    /// implementation can provide custom decoding and validation for that field.
+    fn from_row(row: &'a Row) -> Result<Self, Error>;
+}
+
 /// A row of data returned from the database by a query.
 #[derive(Clone)]
 pub struct Row {
