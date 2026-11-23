@@ -14,7 +14,8 @@ use std::time::Duration;
 use tokio::runtime;
 #[doc(inline)]
 pub use tokio_postgres::config::{
-    ChannelBinding, Host, LoadBalanceHosts, SslMode, SslNegotiation, TargetSessionAttrs,
+    ChannelBinding, Host, LoadBalanceHosts, ScramCryptoProvider, SslMode, SslNegotiation,
+    TargetSessionAttrs,
 };
 use tokio_postgres::error::DbError;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect};
@@ -415,6 +416,19 @@ impl Config {
     /// Gets the channel binding behavior.
     pub fn get_channel_binding(&self) -> ChannelBinding {
         self.config.get_channel_binding()
+    }
+
+    /// Sets the provider for the cryptographic operations of SCRAM-SHA-256 authentication.
+    ///
+    /// See [`tokio_postgres::Config::scram_crypto_provider`].
+    pub fn scram_crypto_provider(&mut self, provider: Arc<dyn ScramCryptoProvider>) -> &mut Config {
+        self.config.scram_crypto_provider(provider);
+        self
+    }
+
+    /// Gets the provider set by [`Config::scram_crypto_provider`], if any.
+    pub fn get_scram_crypto_provider(&self) -> Option<&Arc<dyn ScramCryptoProvider>> {
+        self.config.get_scram_crypto_provider()
     }
 
     /// Sets the host load balancing behavior.

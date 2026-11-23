@@ -146,6 +146,67 @@ async fn scram_password_ok() {
     connect("user=scram_user password=password dbname=postgres").await;
 }
 
+/// A SCRAM provider that refuses every operation.
+#[derive(Debug)]
+struct RefusingScramCrypto;
+
+impl tokio_postgres::config::ScramCryptoProvider for RefusingScramCrypto {
+    fn fill_random(&self, _: &mut [u8]) -> std::io::Result<()> {
+        Err(std::io::Error::other("provider refused"))
+    }
+
+    fn sha256(&self, _: &[u8]) -> std::io::Result<[u8; 32]> {
+        Err(std::io::Error::other("provider refused"))
+    }
+
+    fn hmac_sha256(&self, _: &[u8], _: &[u8]) -> std::io::Result<[u8; 32]> {
+        Err(std::io::Error::other("provider refused"))
+    }
+
+    fn pbkdf2_sha256(&self, _: &[u8], _: &[u8], _: u32) -> std::io::Result<[u8; 32]> {
+        Err(std::io::Error::other("provider refused"))
+    }
+}
+
+async fn connect_raw_with_scram_crypto(
+    s: &str,
+) -> Result<(Client, Connection<TcpStream, NoTlsStream>), Error> {
+    let socket = TcpStream::connect("127.0.0.1:5433").await.unwrap();
+    let mut config = s.parse::<Config>().unwrap();
+    config.scram_crypto_provider(std::sync::Arc::new(RefusingScramCrypto));
+    config.connect_raw(socket, NoTls).await
+}
+
+fn error_source(e: &Error) -> String {
+    std::error::Error::source(e).unwrap().to_string()
+}
+
+#[tokio::test]
+async fn scram_crypto_provider_errors_fail_the_connection() {
+    match connect_raw_with_scram_crypto("user=scram_user password=password dbname=postgres").await {
+        Ok(_) => panic!("unexpected success"),
+        Err(e) => assert_eq!(error_source(&e), "provider refused"),
+    }
+}
+
+#[test]
+fn scram_crypto_provider_config_identity() {
+    let provider: std::sync::Arc<dyn tokio_postgres::config::ScramCryptoProvider> =
+        std::sync::Arc::new(RefusingScramCrypto);
+    let mut a = Config::new();
+    let b = a.clone();
+    a.scram_crypto_provider(provider.clone());
+    assert!(a != b);
+    assert!(a == a.clone());
+    assert!(std::sync::Arc::ptr_eq(
+        a.get_scram_crypto_provider().unwrap(),
+        &provider
+    ));
+    let mut c = Config::new();
+    c.scram_crypto_provider(std::sync::Arc::new(RefusingScramCrypto));
+    assert!(a != c);
+}
+
 #[tokio::test]
 async fn sync() {
     let client = connect("user=postgres").await;
