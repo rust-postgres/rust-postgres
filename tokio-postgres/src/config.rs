@@ -13,6 +13,8 @@ use crate::keepalive::KeepaliveConfig;
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
 use crate::{Client, Connection, Error};
+#[doc(inline)]
+pub use postgres_protocol::authentication::sasl::ScramCryptoProvider;
 use std::borrow::Cow;
 #[cfg(unix)]
 use std::ffi::OsStr;
@@ -24,6 +26,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{error, fmt, iter, mem};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -235,7 +238,20 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
+    pub(crate) scram_crypto: Option<ScramCrypto>,
 }
+
+/// A selected SCRAM provider. Configurations compare providers by `Arc` identity.
+#[derive(Clone, Debug)]
+pub(crate) struct ScramCrypto(pub(crate) Arc<dyn ScramCryptoProvider>);
+
+impl PartialEq for ScramCrypto {
+    fn eq(&self, other: &ScramCrypto) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for ScramCrypto {}
 
 impl Default for Config {
     fn default() -> Config {
@@ -269,6 +285,7 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
+            scram_crypto: None,
         }
     }
 
@@ -551,6 +568,26 @@ impl Config {
         self.channel_binding
     }
 
+    /// Sets the provider for the cryptographic operations of SCRAM-SHA-256 authentication.
+    ///
+    /// Every SCRAM operation of this configuration's connections (nonce, PBKDF2, HMAC, SHA-256
+    /// and the server signature check) then goes through `provider`, and its errors fail the
+    /// connection without falling back to the built-in implementation. Because MD5 cannot be
+    /// computed by such a provider, MD5 password authentication is refused once one is set.
+    ///
+    /// Configurations compare providers by `Arc` identity.
+    ///
+    /// Defaults to the built-in RustCrypto implementation.
+    pub fn scram_crypto_provider(&mut self, provider: Arc<dyn ScramCryptoProvider>) -> &mut Config {
+        self.scram_crypto = Some(ScramCrypto(provider));
+        self
+    }
+
+    /// Gets the provider set by [`Config::scram_crypto_provider`], if any.
+    pub fn get_scram_crypto_provider(&self) -> Option<&Arc<dyn ScramCryptoProvider>> {
+        self.scram_crypto.as_ref().map(|crypto| &crypto.0)
+    }
+
     /// Sets the host load balancing behavior.
     ///
     /// Defaults to `disable`.
@@ -797,6 +834,7 @@ impl fmt::Debug for Config {
             .field("target_session_attrs", &self.target_session_attrs)
             .field("channel_binding", &self.channel_binding)
             .field("load_balance_hosts", &self.load_balance_hosts)
+            .field("scram_crypto_provider", &self.scram_crypto)
             .finish()
     }
 }

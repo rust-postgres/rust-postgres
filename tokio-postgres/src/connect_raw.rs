@@ -181,6 +181,12 @@ where
             authenticate_password(stream, pass).await?;
         }
         Some(Message::AuthenticationMd5Password(body)) => {
+            if config.scram_crypto.is_some() {
+                return Err(Error::authentication(
+                    "MD5 password authentication is refused when a SCRAM crypto provider is set"
+                        .into(),
+                ));
+            }
             can_skip_channel_binding(config)?;
 
             let pass = config
@@ -292,7 +298,11 @@ where
         can_skip_channel_binding(config)?;
     }
 
-    let mut scram = ScramSha256::new(password, channel_binding);
+    let mut scram = match &config.scram_crypto {
+        Some(crypto) => ScramSha256::new_with_crypto(password, channel_binding, crypto.0.clone())
+            .map_err(|e| Error::authentication(e.into()))?,
+        None => ScramSha256::new(password, channel_binding),
+    };
 
     let mut buf = BytesMut::new();
     frontend::sasl_initial_response(mechanism, scram.message(), &mut buf).map_err(Error::encode)?;
@@ -364,5 +374,63 @@ where
             Some(_) => return Err(Error::unexpected_message()),
             None => return Err(Error::closed()),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use futures_util::FutureExt;
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[derive(Debug)]
+    struct UnusedCrypto;
+
+    impl config::ScramCryptoProvider for UnusedCrypto {
+        fn fill_random(&self, _: &mut [u8]) -> io::Result<()> {
+            unreachable!()
+        }
+        fn sha256(&self, _: &[u8]) -> io::Result<[u8; 32]> {
+            unreachable!()
+        }
+        fn hmac_sha256(&self, _: &[u8], _: &[u8]) -> io::Result<[u8; 32]> {
+            unreachable!()
+        }
+        fn pbkdf2_sha256(&self, _: &[u8], _: &[u8], _: u32) -> io::Result<[u8; 32]> {
+            unreachable!()
+        }
+    }
+
+    #[tokio::test]
+    async fn md5_is_refused_with_a_scram_crypto_provider() {
+        let (client, mut server) = tokio::io::duplex(1024);
+        let mut stream: StartupStream<_, crate::tls::NoTlsStream> = StartupStream {
+            inner: Framed::new(MaybeTlsStream::Raw(client), PostgresCodec),
+            buf: BackendMessages::empty(),
+            delayed: VecDeque::new(),
+        };
+        let mut config = Config::new();
+        config.password("password");
+        config.scram_crypto_provider(Arc::new(UnusedCrypto));
+
+        // AuthenticationMD5Password with salt "salt"
+        server
+            .write_all(b"R\0\0\0\x0c\0\0\0\x05salt")
+            .await
+            .unwrap();
+        let error = authenticate(&mut stream, &config, "user")
+            .await
+            .unwrap_err();
+        assert!(
+            std::error::Error::source(&error)
+                .unwrap()
+                .to_string()
+                .contains("MD5 password authentication is refused")
+        );
+
+        // No password message was sent.
+        let mut response = [0u8; 64];
+        assert!(server.read(&mut response).now_or_never().is_none());
     }
 }

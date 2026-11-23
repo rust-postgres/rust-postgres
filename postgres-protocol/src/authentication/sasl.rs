@@ -5,13 +5,13 @@ use base64::display::Base64Display;
 use base64::engine::general_purpose::STANDARD;
 use hmac::{Hmac, KeyInit, Mac};
 use rand::{self, RngExt};
-use sha2::digest::FixedOutput;
 use sha2::{Digest, Sha256};
-use std::fmt::Write;
+use std::fmt::{self, Write};
 use std::io;
 use std::iter;
 use std::mem;
 use std::str;
+use std::sync::Arc;
 
 const NONCE_LENGTH: usize = 24;
 
@@ -65,6 +65,68 @@ pub(crate) fn hi(str: &[u8], salt: &[u8], i: u32) -> [u8; 32] {
     }
 
     hi.into()
+}
+
+/// The cryptographic operations of a SCRAM-SHA-256 exchange.
+///
+/// By default `ScramSha256` uses the RustCrypto `sha2` and `hmac` crates and
+/// `rand`. An implementation of this trait passed to
+/// [`ScramSha256::new_with_crypto`] performs every cryptographic operation of
+/// that exchange instead, for example to use a particular or validated
+/// cryptographic module. Each method may fail; an error aborts the exchange,
+/// and the built-in implementation is never used as a fallback.
+///
+/// The password passed to `pbkdf2_sha256` is already SASLprep-normalized.
+pub trait ScramCryptoProvider: Send + Sync + fmt::Debug {
+    /// Fills `out` with cryptographically secure random bytes.
+    fn fill_random(&self, out: &mut [u8]) -> io::Result<()>;
+
+    /// Computes SHA-256 of `data`.
+    fn sha256(&self, data: &[u8]) -> io::Result<[u8; 32]>;
+
+    /// Computes HMAC-SHA-256 of `data` under `key`.
+    fn hmac_sha256(&self, key: &[u8], data: &[u8]) -> io::Result<[u8; 32]>;
+
+    /// Derives 32 bytes with PBKDF2-HMAC-SHA-256 (the SCRAM `Hi` function).
+    fn pbkdf2_sha256(&self, password: &[u8], salt: &[u8], iterations: u32) -> io::Result<[u8; 32]>;
+
+    /// Compares the expected and received server signatures without a
+    /// data-dependent early exit.
+    fn constant_time_eq(&self, expected: &[u8], received: &[u8]) -> bool {
+        expected.len() == received.len()
+            && std::hint::black_box(
+                expected
+                    .iter()
+                    .zip(received)
+                    .fold(0u8, |acc, (a, b)| acc | (a ^ b)),
+            ) == 0
+    }
+}
+
+/// The built-in provider: RustCrypto `sha2`/`hmac` and `rand`.
+#[derive(Debug)]
+struct DefaultCrypto;
+
+impl ScramCryptoProvider for DefaultCrypto {
+    fn fill_random(&self, out: &mut [u8]) -> io::Result<()> {
+        rand::rng().fill(out);
+        Ok(())
+    }
+
+    fn sha256(&self, data: &[u8]) -> io::Result<[u8; 32]> {
+        Ok(Sha256::digest(data).into())
+    }
+
+    fn hmac_sha256(&self, key: &[u8], data: &[u8]) -> io::Result<[u8; 32]> {
+        let mut hmac =
+            Hmac::<Sha256>::new_from_slice(key).expect("HMAC is able to accept all key sizes");
+        hmac.update(data);
+        Ok(hmac.finalize().into_bytes().into())
+    }
+
+    fn pbkdf2_sha256(&self, password: &[u8], salt: &[u8], iterations: u32) -> io::Result<[u8; 32]> {
+        Ok(hi(password, salt, iterations))
+    }
 }
 
 enum ChannelBindingInner {
@@ -138,6 +200,7 @@ enum State {
 /// The server will reply with an `AuthenticationSASLFinal` message. Its contents should be passed
 /// to the `finish()` method, after which the authentication process is complete.
 pub struct ScramSha256 {
+    crypto: Arc<dyn ScramCryptoProvider>,
     message: String,
     state: State,
 }
@@ -160,8 +223,29 @@ impl ScramSha256 {
         ScramSha256::new_inner(password, channel_binding, nonce)
     }
 
+    /// Constructs a new instance which will use the provided password for authentication and
+    /// `crypto` for every cryptographic operation of the exchange, including the client nonce.
+    ///
+    /// Errors from `crypto` are returned as they are; there is no fallback to the built-in
+    /// implementation.
+    pub fn new_with_crypto(
+        password: &[u8],
+        channel_binding: ChannelBinding,
+        crypto: Arc<dyn ScramCryptoProvider>,
+    ) -> io::Result<ScramSha256> {
+        let mut random = [0u8; NONCE_LENGTH];
+        crypto.fill_random(&mut random)?;
+        // base64 only uses printable characters other than ',', so it is a valid SCRAM nonce.
+        let nonce = STANDARD.encode(random);
+
+        let mut scram = ScramSha256::new_inner(password, channel_binding, nonce);
+        scram.crypto = crypto;
+        Ok(scram)
+    }
+
     fn new_inner(password: &[u8], channel_binding: ChannelBinding, nonce: String) -> ScramSha256 {
         ScramSha256 {
+            crypto: Arc::new(DefaultCrypto),
             message: format!("{}n=,r={}", channel_binding.gs2_header(), nonce),
             state: State::Update {
                 nonce,
@@ -214,16 +298,11 @@ impl ScramSha256 {
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         };
 
-        let salted_password = hi(&password, &salt, parsed.iteration_count);
-
-        let mut hmac = Hmac::<Sha256>::new_from_slice(&salted_password)
-            .expect("HMAC is able to accept all key sizes");
-        hmac.update(b"Client Key");
-        let client_key = hmac.finalize().into_bytes();
-
-        let mut hash = Sha256::default();
-        hash.update(client_key);
-        let stored_key = hash.finalize_fixed();
+        let salted_password =
+            self.crypto
+                .pbkdf2_sha256(&password, &salt, parsed.iteration_count)?;
+        let client_key = self.crypto.hmac_sha256(&salted_password, b"Client Key")?;
+        let stored_key = self.crypto.sha256(&client_key)?;
 
         let mut cbind_input = vec![];
         cbind_input.extend(channel_binding.gs2_header().as_bytes());
@@ -235,10 +314,9 @@ impl ScramSha256 {
 
         let auth_message = format!("n=,r={},{},{}", client_nonce, message, self.message);
 
-        let mut hmac = Hmac::<Sha256>::new_from_slice(&stored_key)
-            .expect("HMAC is able to accept all key sizes");
-        hmac.update(auth_message.as_bytes());
-        let client_signature = hmac.finalize().into_bytes();
+        let client_signature = self
+            .crypto
+            .hmac_sha256(&stored_key, auth_message.as_bytes())?;
 
         let mut client_proof = client_key;
         for (proof, signature) in client_proof.iter_mut().zip(client_signature) {
@@ -289,16 +367,18 @@ impl ScramSha256 {
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         };
 
-        let mut hmac = Hmac::<Sha256>::new_from_slice(&salted_password)
-            .expect("HMAC is able to accept all key sizes");
-        hmac.update(b"Server Key");
-        let server_key = hmac.finalize().into_bytes();
-
-        let mut hmac = Hmac::<Sha256>::new_from_slice(&server_key)
-            .expect("HMAC is able to accept all key sizes");
-        hmac.update(auth_message.as_bytes());
-        hmac.verify_slice(&verifier)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "SCRAM verification error"))
+        let server_key = self.crypto.hmac_sha256(&salted_password, b"Server Key")?;
+        let expected = self
+            .crypto
+            .hmac_sha256(&server_key, auth_message.as_bytes())?;
+        if self.crypto.constant_time_eq(&expected, &verifier) {
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "SCRAM verification error",
+            ))
+        }
     }
 }
 
@@ -513,5 +593,152 @@ mod test {
         let mut scram =
             ScramSha256::new_inner(b"foobar", ChannelBinding::unsupported(), nonce.to_string());
         assert!(scram.update(server_first.as_bytes()).is_err());
+    }
+
+    /// Delegates to the built-in operations, counts calls, and fails the named operation.
+    #[derive(Debug, Default)]
+    struct TestCrypto {
+        fail: &'static str,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl TestCrypto {
+        fn failing(fail: &'static str) -> Arc<TestCrypto> {
+            Arc::new(TestCrypto {
+                fail,
+                ..TestCrypto::default()
+            })
+        }
+
+        fn call(&self, operation: &str) -> io::Result<()> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if self.fail == operation {
+                Err(io::Error::other(operation.to_owned()))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    impl ScramCryptoProvider for TestCrypto {
+        fn fill_random(&self, out: &mut [u8]) -> io::Result<()> {
+            self.call("random")?;
+            out.fill(42);
+            Ok(())
+        }
+
+        fn sha256(&self, data: &[u8]) -> io::Result<[u8; 32]> {
+            self.call("sha256")?;
+            DefaultCrypto.sha256(data)
+        }
+
+        fn hmac_sha256(&self, key: &[u8], data: &[u8]) -> io::Result<[u8; 32]> {
+            self.call("hmac")?;
+            DefaultCrypto.hmac_sha256(key, data)
+        }
+
+        fn pbkdf2_sha256(
+            &self,
+            password: &[u8],
+            salt: &[u8],
+            iterations: u32,
+        ) -> io::Result<[u8; 32]> {
+            self.call("pbkdf2")?;
+            DefaultCrypto.pbkdf2_sha256(password, salt, iterations)
+        }
+    }
+
+    const NONCE: &str = "9IZ2O01zb9IgiIZ1WJ/zgpJB";
+    const SERVER_FIRST: &str =
+        "r=9IZ2O01zb9IgiIZ1WJ/zgpJBjx/oIRLs02gGSHcw1KEty3eY,s=fs3IXBy7U7+IvVjZ,i=4096";
+
+    fn exchange_with(crypto: Arc<TestCrypto>) -> ScramSha256 {
+        let mut scram =
+            ScramSha256::new_inner(b"foobar", ChannelBinding::unsupported(), NONCE.to_string());
+        scram.crypto = crypto;
+        scram
+    }
+
+    #[test]
+    fn provider_runs_the_recorded_exchange() {
+        let crypto = TestCrypto::failing("");
+        let mut scram = exchange_with(crypto.clone());
+        scram.update(SERVER_FIRST.as_bytes()).unwrap();
+        assert_eq!(
+            str::from_utf8(scram.message()).unwrap(),
+            "c=biws,r=9IZ2O01zb9IgiIZ1WJ/zgpJBjx/oIRLs02gGSHcw1KEty3eY,p=AmNKosjJzS3\
+             1NTlQYNs5BTeQjdHdk7lOflDo5re2an8="
+        );
+        scram
+            .finish(b"v=U+ppxD5XUKtradnv8e2MkeupiA8FU87Sg8CXzXHDAzw=")
+            .unwrap();
+        // pbkdf2, client key hmac, sha256, client signature hmac, server key hmac, server
+        // signature hmac
+        assert_eq!(crypto.calls.load(std::sync::atomic::Ordering::SeqCst), 6);
+    }
+
+    #[test]
+    fn provider_rejects_a_wrong_server_signature() {
+        for verifier in ["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "AA=="] {
+            let mut scram = exchange_with(TestCrypto::failing(""));
+            scram.update(SERVER_FIRST.as_bytes()).unwrap();
+            let error = scram
+                .finish(format!("v={verifier}").as_bytes())
+                .unwrap_err();
+            assert_eq!(error.to_string(), "SCRAM verification error");
+        }
+    }
+
+    #[test]
+    fn provider_errors_abort_the_exchange() {
+        assert_eq!(
+            ScramSha256::new_with_crypto(
+                b"foobar",
+                ChannelBinding::unsupported(),
+                TestCrypto::failing("random"),
+            )
+            .err()
+            .unwrap()
+            .to_string(),
+            "random"
+        );
+
+        for operation in ["pbkdf2", "hmac", "sha256"] {
+            let mut scram = exchange_with(TestCrypto::failing(operation));
+            let error = scram.update(SERVER_FIRST.as_bytes()).unwrap_err();
+            assert_eq!(error.to_string(), operation);
+            assert!(scram.update(SERVER_FIRST.as_bytes()).is_err());
+        }
+
+        let mut scram = exchange_with(TestCrypto::failing(""));
+        scram.update(SERVER_FIRST.as_bytes()).unwrap();
+        scram.crypto = TestCrypto::failing("hmac");
+        let error = scram
+            .finish(b"v=U+ppxD5XUKtradnv8e2MkeupiA8FU87Sg8CXzXHDAzw=")
+            .unwrap_err();
+        assert_eq!(error.to_string(), "hmac");
+    }
+
+    #[test]
+    fn provider_nonce_comes_from_fill_random() {
+        let scram = ScramSha256::new_with_crypto(
+            b"foobar",
+            ChannelBinding::unsupported(),
+            TestCrypto::failing(""),
+        )
+        .unwrap();
+        assert_eq!(
+            str::from_utf8(scram.message()).unwrap(),
+            "n,,n=,r=KioqKioqKioqKioqKioqKioqKioqKioq"
+        );
+    }
+
+    #[test]
+    fn default_constant_time_eq() {
+        let crypto = DefaultCrypto;
+        assert!(crypto.constant_time_eq(b"abc", b"abc"));
+        assert!(!crypto.constant_time_eq(b"abc", b"abd"));
+        assert!(!crypto.constant_time_eq(b"abc", b"ab"));
+        assert!(crypto.constant_time_eq(b"", b""));
     }
 }
