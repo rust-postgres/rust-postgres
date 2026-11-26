@@ -1,7 +1,7 @@
 use std::fmt;
 
 use postgres_types::FromSqlOwned;
-use time_03::{OffsetDateTime, PrimitiveDateTime, format_description};
+use time_03::{OffsetDateTime, PrimitiveDateTime, UtcDateTime, format_description};
 use tokio_postgres::{
     Client,
     types::{Date, Timestamp},
@@ -67,6 +67,28 @@ async fn test_offset_date_time_params() {
             make_check("'1970-01-01 00:00:00 +0000'"), // .010000000
             make_check("'1965-09-25 11:19:33 +0000'"), // .100314000
             make_check("'2010-02-09 23:11:45 +0000'"), // .120200000
+            (None, "NULL"),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_utc_date_time_params() {
+    let format =
+        format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond]")
+            .unwrap();
+    test_type(
+        "TIMESTAMP WITH TIME ZONE",
+        &[
+            (
+                Some(UtcDateTime::parse("1965-09-25 11:19:33.010123", &format).unwrap()),
+                "'1965-09-25 13:19:33.010123 +02:00'",
+            ),
+            (
+                Some(UtcDateTime::parse("2010-02-09 23:11:45.120200", &format).unwrap()),
+                "'2010-02-09 23:11:45.120200 +00:00'",
+            ),
             (None, "NULL"),
         ],
     )
@@ -173,6 +195,8 @@ async fn test_special_params_without_wrapper() {
 
     assert_overflows::<OffsetDateTime>(&mut client, "'-infinity'", "timestamptz").await;
     assert_overflows::<OffsetDateTime>(&mut client, "'infinity'", "timestamptz").await;
+    assert_overflows::<UtcDateTime>(&mut client, "'-infinity'", "timestamptz").await;
+    assert_overflows::<UtcDateTime>(&mut client, "'infinity'", "timestamptz").await;
 
     assert_overflows::<PrimitiveDateTime>(&mut client, "'-infinity'", "timestamp").await;
     assert_overflows::<PrimitiveDateTime>(&mut client, "'infinity'", "timestamp").await;

@@ -68,5 +68,5 @@ serde_json-1 = { version = "1.0.144", package = "serde_json", optional = true }
 uuid-08 = { version = "0.8", package = "uuid", optional = true }
 uuid-1 = { version = "1.0", package = "uuid", optional = true }
 time-02 = { version = "0.2.7", package = "time", optional = true }
-time-03 = { version = "0.3.5", package = "time", default-features = false, optional = true }
+time-03 = { version = "0.3.38", package = "time", default-features = false, optional = true }
 smol_str-01 = { version = "0.1.23", package = "smol_str", default-features = false, optional = true }
