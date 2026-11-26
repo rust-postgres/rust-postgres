@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use postgres_protocol::types;
 use std::error::Error;
-use time_03::{Date, Duration, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
+use time_03::{Date, Duration, OffsetDateTime, PrimitiveDateTime, Time, UtcDateTime, UtcOffset};
 
 use crate::{FromSql, IsNull, ToSql, Type};
 
@@ -54,6 +54,28 @@ impl ToSql for OffsetDateTime {
         let time = utc_datetime.time();
         let primitive = PrimitiveDateTime::new(date, time);
         primitive.to_sql(type_, w)
+    }
+
+    accepts!(TIMESTAMPTZ);
+    to_sql_checked!();
+}
+
+impl<'a> FromSql<'a> for UtcDateTime {
+    fn from_sql(type_: &Type, raw: &[u8]) -> Result<UtcDateTime, Box<dyn Error + Sync + Send>> {
+        let primitive = PrimitiveDateTime::from_sql(type_, raw)?;
+        Ok(UtcDateTime::new(primitive.date(), primitive.time()))
+    }
+
+    accepts!(TIMESTAMPTZ);
+}
+
+impl ToSql for UtcDateTime {
+    fn to_sql(
+        &self,
+        type_: &Type,
+        w: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+        PrimitiveDateTime::new(self.date(), self.time()).to_sql(type_, w)
     }
 
     accepts!(TIMESTAMPTZ);

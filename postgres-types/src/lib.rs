@@ -503,6 +503,7 @@ impl WrongType {
 /// | `cidr::IpInet`                  | INET                                |
 /// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
 /// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
+/// | `time::UtcDateTime`             | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
 /// | `time::Time`                    | TIME                                |
 /// | `jiff::civil::Date`             | DATE                                |
@@ -874,6 +875,7 @@ pub enum IsNull {
 /// | `cidr::IpInet`                  | INET                                |
 /// | `time::PrimitiveDateTime`       | TIMESTAMP                           |
 /// | `time::OffsetDateTime`          | TIMESTAMP WITH TIME ZONE            |
+/// | `time::UtcDateTime`             | TIMESTAMP WITH TIME ZONE            |
 /// | `time::Date`                    | DATE                                |
 /// | `time::Time`                    | TIME                                |
 /// | `eui48::MacAddress`             | MACADDR                             |
